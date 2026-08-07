@@ -1,6 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AssetsOverview } from '../../apps/desktop/renderer/src/components/AssetsOverview';
+import { ActivityLogPane } from '../../apps/desktop/renderer/src/components/ActivityLogPane';
 import { IntroPage } from '../../apps/desktop/renderer/src/components/IntroPage';
 import { SettingsPage } from '../../apps/desktop/renderer/src/components/SettingsPage';
 
@@ -31,7 +32,7 @@ describe('renderer components', () => {
   it('gives repeated category actions distinct accessible names', () => {
     const html = renderToStaticMarkup(React.createElement(SettingsPage, {
       databasePath: '/tmp/jatlas.db', themeMode: 'dark', embyServerUrl: '', embyApiKey: '', saving: false,
-      submitting: false, message: '', tiers: [{ id: 1, name: '核心收藏', video_limit: 80, total_video_limit: 200, status: 'active', actressCount: 2 }],
+      submitting: false, tiers: [{ id: 1, name: '核心收藏', video_limit: 80, total_video_limit: 200, status: 'active', actressCount: 2 }],
       tierStoragePaths: {}, onSelectDatabase: () => undefined, onThemeChange: () => undefined,
       onEmbyServerUrlChange: () => undefined, onEmbyApiKeyChange: () => undefined, onSave: () => undefined,
       onCreateTier: () => undefined, onEditTier: () => undefined, onDeleteTier: () => undefined,
@@ -39,5 +40,25 @@ describe('renderer components', () => {
 
     expect(html).toContain('aria-label="编辑分类 核心收藏"');
     expect(html).toContain('aria-label="删除分类 核心收藏"');
+  });
+
+  it('keeps task controls inside the right activity log pane', () => {
+    const html = renderToStaticMarkup(React.createElement(ActivityLogPane, {
+      open: true,
+      running: true,
+      failed: true,
+      hasActivities: false,
+      lines: [],
+      bodyRef: { current: null },
+      lastLineRef: { current: null },
+      onCancel: () => undefined,
+      retryFailureCount: 2,
+      onRetry: () => undefined,
+      onClose: () => undefined,
+    }));
+
+    expect(html).toContain('aria-label="操作日志"');
+    expect(html).toContain('取消任务');
+    expect(html).toContain('重试失败项 (2)');
   });
 });

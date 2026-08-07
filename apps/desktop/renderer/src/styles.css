@@ -889,24 +889,6 @@ pre {
   grid-column: auto;
 }
 
-.activity-inline-hint {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 10px 12px !important;
-  border: 1px solid var(--line);
-  border-radius: 0;
-  color: var(--text-soft);
-  background: rgba(255, 176, 0, 0.08);
-}
-
-.activity-inline-hint span {
-  margin-right: auto;
-}
-
 .workspace-tab {
   width: 100%;
   justify-content: flex-start;
@@ -1752,7 +1734,19 @@ body {
 
 .activity-log-title-toggle.is-in-log-pane {
   flex: 0 0 auto;
+}
+
+.activity-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
+}
+
+.activity-log-actions button:not(.activity-log-title-toggle) {
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 11px;
 }
 
 .activity-log-pane.is-running .activity-log-header {
@@ -1948,7 +1942,6 @@ body {
 :root[data-theme='terminal-light'] .entity-form-section,
 :root[data-theme='terminal-light'] .workspace-shell h2 + div > div,
 :root[data-theme='terminal-light'] .workspace-shell ul,
-:root[data-theme='terminal-light'] .activity-inline-hint,
 :root[data-theme='terminal-light'] .workspace-splitter,
 :root[data-theme='terminal-light'] .activity-log-pane.is-collapsed .activity-log-header {
   background: var(--panel-muted) !important;

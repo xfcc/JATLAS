@@ -196,8 +196,10 @@ async function backfillActressStatuses(databaseUrl: string) {
   try {
     await client.$executeRawUnsafe(`
       UPDATE "Actress"
-      SET "status" = 'active'
-      WHERE "status" IS NULL OR TRIM("status") = ''
+      SET "status" = CASE
+        WHEN TRIM("career_to") <> '' THEN 'retired'
+        ELSE 'active'
+      END
     `);
   } finally {
     await client.$disconnect();

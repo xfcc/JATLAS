@@ -8,7 +8,6 @@ type SettingsPageProps = {
   embyApiKey: string;
   saving: boolean;
   submitting: boolean;
-  message: string;
   tiers: DesktopTier[];
   tierStoragePaths: Record<string, string>;
   onSelectDatabase: () => void;
@@ -31,7 +30,7 @@ export function SettingsPage(props: SettingsPageProps) {
           <label>视觉模式<select value={props.themeMode} onChange={(event) => props.onThemeChange(normalizeDesktopThemeMode(event.target.value))} disabled={props.saving}>{desktopThemeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label>Emby 服务地址<input value={props.embyServerUrl} onChange={(event) => props.onEmbyServerUrlChange(event.target.value)} placeholder="例如 http://emby.local:8096" /></label>
           <label>Emby API Key<input value={props.embyApiKey} onChange={(event) => props.onEmbyApiKeyChange(event.target.value)} type="password" placeholder="用于演员 ID 与影片数量同步" /></label>
-          <div className="settings-actions"><button type="button" onClick={props.onSave} disabled={props.saving}>{props.saving ? '保存中...' : '保存设置'}</button>{props.message ? <span role="status">{props.message}</span> : null}</div>
+          <div className="settings-actions"><button type="button" onClick={props.onSave} disabled={props.saving} aria-busy={props.saving}>保存设置</button></div>
         </div>
       </section>
 

@@ -9,7 +9,8 @@ describe('asset metric copy', () => {
   });
 
   it('states the time windows used by update metrics', () => {
-    expect(assetMetricCopy.activeNotUpdatedThirtyDays.description).toContain('30 天');
+    expect(assetMetricCopy.activeNotUpdatedThirtyDays.label).toBe('30 天未扩增');
+    expect(assetMetricCopy.activeNotUpdatedThirtyDays.description).toContain('没有增加');
     expect(assetMetricCopy.profileNotUpdatedSixMonths.description).toContain('6 个月');
   });
 });

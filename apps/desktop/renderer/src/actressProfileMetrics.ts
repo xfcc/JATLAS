@@ -32,23 +32,50 @@ function parseProfileDate(value: string): ParsedProfileDate | null {
   return { year, month, day };
 }
 
-export function formatActressAge(birthday: string, now = new Date()): string {
-  const parsed = parseProfileDate(birthday);
-  if (!parsed) return '-';
-  let age = now.getFullYear() - parsed.year;
-  if (parsed.month !== null && parsed.day !== null) {
-    const currentMonth = now.getMonth() + 1;
-    const currentDay = now.getDate();
-    if (currentMonth < parsed.month || (currentMonth === parsed.month && currentDay < parsed.day)) {
-      age -= 1;
-    }
+function ageAt(birthday: ParsedProfileDate, reference: ParsedProfileDate): number {
+  let age = reference.year - birthday.year;
+  if (
+    birthday.month !== null &&
+    birthday.day !== null &&
+    reference.month !== null &&
+    reference.day !== null &&
+    (reference.month < birthday.month ||
+      (reference.month === birthday.month && reference.day < birthday.day))
+  ) {
+    age -= 1;
   }
-  return age >= 0 ? `${age}岁` : '-';
+  return age;
 }
 
-export function formatActressCareerDuration(careerFrom: string, now = new Date()): string {
-  const year = parseProfileYear(careerFrom);
-  if (year === null) return '-';
-  const duration = now.getFullYear() - year;
-  return duration >= 0 ? `${duration}年` : '-';
+export function getActressAge(birthday: string, careerTo = '', now = new Date()): number | null {
+  const parsed = parseProfileDate(birthday);
+  if (!parsed) return null;
+  const retiredAt = careerTo.trim() ? parseProfileDate(careerTo) : null;
+  if (careerTo.trim() && !retiredAt) return null;
+  const reference = retiredAt ?? {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    day: now.getDate(),
+  };
+  const age = ageAt(parsed, reference);
+  return age >= 0 ? age : null;
+}
+
+export function formatActressAge(birthday: string, careerTo = '', now = new Date()): string {
+  const age = getActressAge(birthday, careerTo, now);
+  return age === null ? '-' : `${age}岁`;
+}
+
+export function getActressCareerDuration(careerFrom: string, careerTo = '', now = new Date()): number | null {
+  const startYear = parseProfileYear(careerFrom);
+  if (startYear === null) return null;
+  const endYear = careerTo.trim() ? parseProfileYear(careerTo) : now.getFullYear();
+  if (endYear === null) return null;
+  const duration = endYear - startYear;
+  return duration >= 0 ? duration : null;
+}
+
+export function formatActressCareerDuration(careerFrom: string, careerTo = '', now = new Date()): string {
+  const duration = getActressCareerDuration(careerFrom, careerTo, now);
+  return duration === null ? '-' : `${duration}年`;
 }

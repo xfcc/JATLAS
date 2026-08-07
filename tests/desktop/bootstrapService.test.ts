@@ -46,7 +46,7 @@ describe('initializeDatabaseForDesktop', () => {
     expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS "Actress"'));
     expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS "AssetLog"'));
     expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('total_video_limit'));
-    expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('"status" = \'active\''));
+    expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('WHEN TRIM("career_to") <> \'\' THEN \'retired\''));
     expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('"career_from"'));
     expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('"asset_updated_at" = "updated_at"'));
     expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS "_jatlas_meta"'));

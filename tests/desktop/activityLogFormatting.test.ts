@@ -304,7 +304,7 @@ describe('activity log formatting', () => {
         avatar_path: '',
         minnano_url: '',
         tags: [],
-        updated_at: '2026-06-01T00:00:00.000Z',
+        asset_expanded_at: '2026-06-01T00:00:00.000Z',
       },
       {
         id: 128,
@@ -326,7 +326,7 @@ describe('activity log formatting', () => {
         avatar_path: '',
         minnano_url: 'https://www.minnano-av.com/actress832690.html',
         tags: ['微乳', '低身長'],
-        updated_at: '2026-06-01T00:01:00.000Z',
+        asset_expanded_at: '2026-06-01T00:01:00.000Z',
       },
     );
 
@@ -374,7 +374,7 @@ describe('activity log formatting', () => {
           avatar_path: '',
           minnano_url: '',
           tags: [],
-          updated_at: '2026-06-01T00:00:00.000Z',
+          asset_expanded_at: '2026-06-01T00:00:00.000Z',
         },
         {
           id: 128,
@@ -396,7 +396,7 @@ describe('activity log formatting', () => {
           avatar_path: '',
           minnano_url: '',
           tags: [],
-          updated_at: '2026-06-01T00:01:00.000Z',
+          asset_expanded_at: '2026-06-01T00:01:00.000Z',
         },
       ),
     ).toEqual([{ label: 'Emby ID', detail: '2 个 -> 2 个（内容已更新）' }]);
@@ -423,7 +423,7 @@ describe('activity log formatting', () => {
       avatar_path: '',
       minnano_url: 'https://www.minnano-av.com/actress832690.html',
       tags: ['微乳', '低身長'],
-      updated_at: '2026-06-01T00:00:00.000Z',
+      asset_expanded_at: '2026-06-01T00:00:00.000Z',
     };
 
     expect(formatActressCreatedSummaryText(row.tierName)).toBe('演员已创建，归入 S 分级。');

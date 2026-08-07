@@ -22,11 +22,11 @@ function actress(input: Partial<DesktopActress> & Pick<DesktopActress, 'name'>):
     hip: '',
     birthday: input.birthday ?? '',
     career_from: input.career_from ?? '',
-    career_to: '',
+    career_to: input.career_to ?? '',
     minnano_url: '',
     avatar_path: '',
     tags: [],
-    updated_at: input.updated_at ?? '2026-06-01T00:00:00.000Z',
+    asset_expanded_at: input.asset_expanded_at ?? '2026-06-01T00:00:00.000Z',
   };
 }
 
@@ -41,12 +41,12 @@ describe('asset health helpers', () => {
 
   it('sorts actresses by video count and update time', () => {
     const rows = [
-      actress({ name: 'Beta', video_count: 12, updated_at: '2026-06-02T00:00:00.000Z' }),
-      actress({ name: 'Alpha', video_count: 20, updated_at: '2026-06-01T00:00:00.000Z' }),
+      actress({ name: 'Beta', video_count: 12, asset_expanded_at: '2026-06-02T00:00:00.000Z' }),
+      actress({ name: 'Alpha', video_count: 20, asset_expanded_at: '2026-06-01T00:00:00.000Z' }),
     ];
 
     expect(sortActresses(rows, 'video_count', 'desc').map((row) => row.name)).toEqual(['Alpha', 'Beta']);
-    expect(sortActresses(rows, 'updated_at', 'desc').map((row) => row.name)).toEqual(['Beta', 'Alpha']);
+    expect(sortActresses(rows, 'asset_expanded_at', 'desc').map((row) => row.name)).toEqual(['Beta', 'Alpha']);
   });
 
   it('sorts actresses by cup size and keeps empty cups last in ascending order', () => {
@@ -80,5 +80,15 @@ describe('asset health helpers', () => {
 
     expect(sortActresses(rows, 'career_duration', 'desc').map((row) => row.name)).toEqual(['Senior', 'Newer', 'Unknown']);
     expect(sortActresses(rows, 'career_duration', 'asc').map((row) => row.name)).toEqual(['Newer', 'Senior', 'Unknown']);
+  });
+
+  it('sorts retired actresses by their frozen age and career duration', () => {
+    const rows = [
+      actress({ name: 'Long Career', birthday: '1990', career_from: '2010', career_to: '2020' }),
+      actress({ name: 'Short Career', birthday: '1980', career_from: '2018', career_to: '2020' }),
+    ];
+
+    expect(sortActresses(rows, 'age', 'desc').map((row) => row.name)).toEqual(['Short Career', 'Long Career']);
+    expect(sortActresses(rows, 'career_duration', 'desc').map((row) => row.name)).toEqual(['Long Career', 'Short Career']);
   });
 });

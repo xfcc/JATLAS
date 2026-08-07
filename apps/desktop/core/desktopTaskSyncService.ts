@@ -192,40 +192,90 @@ export function startDesktopSyncMovieCountsTask(
   opts?: { onCompleted?: () => void },
 ) {
   const taskId = createDesktopTaskId();
-  setDesktopTaskState(taskId, { progress: 0, total: actressIds.length, status: 'processing' });
+  const startedAt = new Date().toISOString();
+  const title = actressIds.length === 1 ? '刷新影片数量' : '批量刷新影片数量';
+  const events: TierSyncLogEvent[] = [];
+  let scope: string | undefined;
+
+  const flush = (
+    done: number,
+    status: string,
+    last?: { name: string; result: 'success' | 'skipped' | 'error'; detail: string },
+    finishedAt?: string,
+  ) => {
+    setDesktopTaskState(taskId, {
+      taskId,
+      kind: 'video-count-sync',
+      title,
+      scope,
+      progress: done,
+      total: actressIds.length,
+      status,
+      startedAt,
+      finishedAt,
+      currentItem: last?.name,
+      events: [...events],
+      lastProcessedItem: last,
+      ...(finishedAt ? { summary: buildTierSummary(events) } : {}),
+    });
+  };
+
+  flush(0, 'processing');
 
   void (async () => {
     try {
-    let successfulCount = 0;
     for (let i = 0; i < actressIds.length; i++) {
       if (isDesktopTaskCancelRequested(taskId)) {
-    setDesktopTaskState(taskId, {
-          progress: i,
-          total: actressIds.length,
-          status: 'completed:cancelled',
-        });
+        flush(i, 'completed:cancelled', undefined, new Date().toISOString());
         return;
       }
       const actressId = parseInt(String(actressIds[i]), 10);
+      let subjectName = `ID: ${actressId}`;
       try {
         const actress = await prisma.actress.findUnique({ where: { id: actressId } });
         if (!actress) {
-    setDesktopTaskState(taskId, {
-            progress: i + 1,
-            total: actressIds.length,
-            status: `processing (${successfulCount} successful)`,
-            lastProcessedItem: { name: `ID: ${actressId}`, result: 'error', detail: '演员不存在' },
+          const detail = '演员不存在';
+          events.push({
+            id: `${taskId}-${i + 1}`,
+            index: i + 1,
+            timestamp: new Date().toISOString(),
+            actressId,
+            subjectId: actressId,
+            subjectName,
+            name: subjectName,
+            action: '刷新影片数量',
+            result: 'error',
+            oldCount: null,
+            newCount: null,
+            delta: null,
+            detail,
           });
+          flush(i + 1, 'processing', { name: subjectName, result: 'error', detail });
           continue;
         }
+        subjectName = actress.name;
+        if (actressIds.length === 1) scope = actress.name;
         const actressEmbyIds = normalizeEmbyIdList(actress.emby_id);
         if (actressEmbyIds.length === 0) {
-    setDesktopTaskState(taskId, {
-            progress: i + 1,
-            total: actressIds.length,
-            status: `processing (${successfulCount} successful)`,
-            lastProcessedItem: { name: actress.name, result: 'skipped', detail: '未关联 Emby ID，已跳过' },
+          const detail = '未关联 Emby ID，已跳过';
+          events.push({
+            id: `${taskId}-${i + 1}`,
+            index: i + 1,
+            timestamp: new Date().toISOString(),
+            actressId: actress.id,
+            subjectId: actress.id,
+            subjectName: actress.name,
+            name: actress.name,
+            action: '刷新影片数量',
+            result: 'skipped',
+            before: actress.video_count,
+            after: null,
+            oldCount: actress.video_count,
+            newCount: null,
+            delta: null,
+            detail,
           });
+          flush(i + 1, 'processing', { name: actress.name, result: 'skipped', detail });
           continue;
         }
 
@@ -236,7 +286,10 @@ export function startDesktopSyncMovieCountsTask(
         if (videoDelta !== 0) {
           await prisma.actress.update({
             where: { id: actressId },
-            data: { video_count: newCount, asset_updated_at: new Date() },
+            data: {
+              video_count: newCount,
+              ...(videoDelta > 0 ? { asset_updated_at: new Date() } : {}),
+            },
           });
           await prisma.assetLog.create({
             data: {
@@ -248,33 +301,47 @@ export function startDesktopSyncMovieCountsTask(
           });
         }
 
-        successfulCount++;
-    setDesktopTaskState(taskId, {
-          progress: i + 1,
-          total: actressIds.length,
-          status: `processing (${successfulCount} successful)`,
-          lastProcessedItem: {
-            name: actress.name,
-            result: 'success',
-            detail: videoDelta === 0 ? '库存无变化' : `已同步为 ${newCount} 部`,
-          },
+        const detail = videoDelta === 0 ? '库存无变化' : `已同步为 ${newCount} 部`;
+        events.push({
+          id: `${taskId}-${i + 1}`,
+          index: i + 1,
+          timestamp: new Date().toISOString(),
+          actressId: actress.id,
+          subjectId: actress.id,
+          subjectName: actress.name,
+          name: actress.name,
+          action: '刷新影片数量',
+          result: 'success',
+          before: actress.video_count,
+          after: newCount,
+          oldCount: actress.video_count,
+          newCount,
+          delta: videoDelta,
+          detail,
         });
+        flush(i + 1, 'processing', { name: actress.name, result: 'success', detail });
       } catch (e) {
         const detail = e instanceof Error ? e.message : typeof e === 'string' ? e : '同步失败';
-    setDesktopTaskState(taskId, {
-          progress: i + 1,
-          total: actressIds.length,
-          status: `processing (${successfulCount} successful)`,
-          lastProcessedItem: { name: `ID: ${actressId}`, result: 'error', detail },
+        events.push({
+          id: `${taskId}-${i + 1}`,
+          index: i + 1,
+          timestamp: new Date().toISOString(),
+          actressId,
+          subjectId: actressId,
+          subjectName,
+          name: subjectName,
+          action: '刷新影片数量',
+          result: 'error',
+          oldCount: null,
+          newCount: null,
+          delta: null,
+          detail,
         });
+        flush(i + 1, 'processing', { name: subjectName, result: 'error', detail });
       }
     }
 
-    setDesktopTaskState(taskId, {
-      progress: actressIds.length,
-      total: actressIds.length,
-      status: `completed (${successfulCount} successful)`,
-    });
+    flush(actressIds.length, 'completed', undefined, new Date().toISOString());
     opts?.onCompleted?.();
     } finally {
       clearDesktopTaskCancel(taskId);
@@ -420,7 +487,10 @@ export function startDesktopTierVideoCountSyncTask(tierId: number, opts?: { onCo
         if (videoDelta !== 0) {
           await prisma.actress.update({
             where: { id: actress.id },
-            data: { video_count: newCount, asset_updated_at: new Date() },
+            data: {
+              video_count: newCount,
+              ...(videoDelta > 0 ? { asset_updated_at: new Date() } : {}),
+            },
           });
           await prisma.assetLog.create({
             data: {

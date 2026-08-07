@@ -17,6 +17,7 @@ import type {
 } from '../../core/desktopDataService';
 import type { DesktopRuntimeConfig } from '../../core/configService';
 import type { TaskActivityEvent, TaskState } from '../../core/desktopTaskStore';
+import { actressStatusFromCareerTo } from '../../shared/actressProfileRules';
 import {
   formatActressCreatedSummaryText,
   formatActressDeletedSummaryText,
@@ -403,8 +404,6 @@ export function App() {
   const [storageRootPath, setStorageRootPath] = useState('');
   const [tierStoragePaths, setTierStoragePaths] = useState<Record<string, string>>({});
   const [runtimeConfigBaseline, setRuntimeConfigBaseline] = useState<DesktopRuntimeConfig | null>(null);
-  const [settingsMessage, setSettingsMessage] = useState('');
-  const [tierDetailMessage, setTierDetailMessage] = useState('');
   const [tiers, setTiers] = useState<DesktopTier[]>([]);
   const [actresses, setActresses] = useState<DesktopActress[]>([]);
   const [query, setQuery] = useState('');
@@ -413,7 +412,6 @@ export function App() {
   const [name, setName] = useState('');
   const [tierId, setTierId] = useState<number>(1);
   const [videoCount, setVideoCount] = useState<number>(0);
-  const [actressStatus, setActressStatus] = useState('active');
   const [embyIdsInput, setEmbyIdsInput] = useState('');
   const [romanInput, setRomanInput] = useState('');
   const [aliasesInput, setAliasesInput] = useState('');
@@ -490,6 +488,7 @@ export function App() {
   };
 
   const appendActivity = (activity: ActivitySnapshot) => {
+    setIsLogPaneOpen(true);
     setActivityHistory((prev) => [activity, ...prev.filter((item) => item.activityId !== activity.activityId)].slice(0, 30));
   };
 
@@ -596,6 +595,7 @@ export function App() {
 
   const beginPollTask = (taskId: string) => {
     stopPoll();
+    setIsLogPaneOpen(true);
     setActivePollingTaskId(taskId);
     archivedTaskIdsRef.current.delete(taskId);
     setSyncTaskState({
@@ -639,7 +639,7 @@ export function App() {
     try {
       await window.desktopApi.cancelSyncTask(id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '取消失败');
+      appendActivity(createSimpleActivity('取消后台任务', e instanceof Error ? e.message : '取消失败', 'error'));
     }
   };
 
@@ -657,7 +657,7 @@ export function App() {
           : await window.desktopApi.startSyncMovieCounts(ids);
       beginPollTask(taskId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '重试失败');
+      appendActivity(createSimpleActivity('重试失败项', e instanceof Error ? e.message : '重试失败', 'error'));
     }
   };
 
@@ -687,13 +687,13 @@ export function App() {
     try {
       const ids = await getActressIdsForTier(id);
       if (ids.length === 0) {
-        setError('当前分类下没有演员。');
+        appendActivity(createSimpleActivity('批量补全 Emby ID', '当前分类下没有演员。', 'skipped'));
         return;
       }
       const { taskId } = await window.desktopApi.startSyncEmbyIds(ids);
       beginPollTask(taskId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '同步 Emby ID 失败');
+      appendActivity(createSimpleActivity('批量补全 Emby ID', e instanceof Error ? e.message : '同步 Emby ID 失败', 'error'));
     }
   };
 
@@ -703,7 +703,7 @@ export function App() {
       const { taskId } = await window.desktopApi.startTierVideoSync(id);
       beginPollTask(taskId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '分类同步失败');
+      appendActivity(createSimpleActivity('批量刷新影片数量', e instanceof Error ? e.message : '分类同步失败', 'error'));
     }
   };
 
@@ -713,7 +713,7 @@ export function App() {
       const { taskId } = await window.desktopApi.startSyncMovieCounts([id]);
       beginPollTask(taskId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '刷新影片数量失败');
+      appendActivity(createSimpleActivity('刷新影片数量', e instanceof Error ? e.message : '刷新影片数量失败', 'error'));
     }
   };
 
@@ -741,14 +741,12 @@ export function App() {
     setError(null);
     setStorageFolders(null);
     setStorageResolved(null);
-    setTierDetailMessage('');
     try {
       const result = await window.desktopApi.scanStorage(id, storagePathInput);
       setStorageResolved(result.resolvedPath);
       setStorageFolders(result.folders);
       appendActivity(createStorageScanActivity(result.folders, result.resolvedPath, activeTierDetail ? `${activeTierDetail.name} 分类` : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : '扫描失败');
       appendActivity(createSimpleActivity('扫描存储地址', e instanceof Error ? e.message : '扫描失败', 'error'));
     } finally {
       setLoading(false);
@@ -763,10 +761,8 @@ export function App() {
     setError(null);
     try {
       const { taskId } = await window.desktopApi.startStorageImport(id, storageFolders);
-      setTierDetailMessage('导入任务已开始，可在右侧操作日志中查看进度。');
       beginPollTask(taskId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '批量导入失败');
       appendActivity(createSimpleActivity('批量导入演员', e instanceof Error ? e.message : '批量导入失败', 'error'));
     }
   };
@@ -883,7 +879,6 @@ export function App() {
   const onSaveRuntimeSettings = async () => {
     setSaving(true);
     setError(null);
-    setSettingsMessage('');
     try {
       const nextConfig = runtimeConfigWithPaths(tierStoragePaths);
       const databaseChanged = Boolean(
@@ -909,11 +904,9 @@ export function App() {
         setQuery('');
         await Promise.all([loadWorkspaceData(), loadDashboardData()]);
       }
-      setSettingsMessage('设置已保存。');
       appendActivity(createRuntimeSettingsActivity(getRuntimeSettingsChanges(runtimeConfigBaseline, saved)));
     } catch (e) {
       const detail = e instanceof Error ? e.message : '保存设置失败';
-      setError(detail);
       appendActivity(createRuntimeSettingsFailureActivity(detail));
     } finally {
       setSaving(false);
@@ -926,18 +919,15 @@ export function App() {
     setThemeMode(nextThemeMode);
     setSaving(true);
     setError(null);
-    setSettingsMessage('');
     try {
       const nextConfig = runtimeConfigWithPaths(tierStoragePaths, nextThemeMode);
       const saved = await window.desktopApi.saveRuntimeConfig(nextConfig);
       const savedThemeMode = normalizeDesktopThemeMode(saved.themeMode);
       setThemeMode(savedThemeMode);
       setRuntimeConfigBaseline(saved);
-      setSettingsMessage('视觉模式已保存。');
       appendActivity(createRuntimeSettingsActivity(getRuntimeSettingsChanges(runtimeConfigBaseline, saved)));
     } catch (e) {
       const detail = e instanceof Error ? e.message : '保存视觉模式失败';
-      setError(detail);
       appendActivity(createRuntimeSettingsFailureActivity(detail));
     } finally {
       setSaving(false);
@@ -965,13 +955,12 @@ export function App() {
     setStoragePathInput(getCachedTierStoragePath(row.id));
     setStorageResolved(null);
     setStorageFolders(null);
-    setTierDetailMessage('');
     setError(null);
     setQuery('');
     try {
       setActresses(await window.desktopApi.listActresses());
     } catch (e) {
-      setError(e instanceof Error ? e.message : '加载分类演员失败');
+      appendActivity(createSimpleActivity('加载分类演员', e instanceof Error ? e.message : '加载分类演员失败', 'error', `${row.name} 分类`));
     }
   };
 
@@ -1082,7 +1071,6 @@ export function App() {
       setTiers(previousTiers);
       setActresses(previousActresses);
       const detail = e instanceof Error ? e.message : '保存分类失败';
-      setError(detail);
       appendActivity(
         createTierFailureActivity(
           '保存分类',
@@ -1132,7 +1120,6 @@ export function App() {
     } catch (e) {
       setTiers(previousTiers);
       const detail = e instanceof Error ? e.message : '删除分类失败';
-      setError(detail);
       appendActivity(
         createTierFailureActivity(
           '删除分类',
@@ -1151,7 +1138,6 @@ export function App() {
     setEditingId(null);
     setName('');
     setVideoCount(0);
-    setActressStatus('active');
     setEmbyIdsInput('');
     setRomanInput('');
     setAliasesInput('');
@@ -1226,7 +1212,6 @@ export function App() {
       appendActivity(createSimpleActivity('获取 Minnano 更新', `${summary} 来源：${profile.sourceUrl}`, 'success', profile.matchedName || actorName));
     } catch (e) {
       const detail = e instanceof Error ? e.message : 'Minnano 抓取失败。';
-      setError(detail);
       appendActivity(createSimpleActivity('获取 Minnano 更新', detail, 'error', actorName));
     } finally {
       setMinnanoFetching(false);
@@ -1244,7 +1229,6 @@ export function App() {
       name: name.trim(),
       tierId,
       video_count: Number(videoCount) || 0,
-      status: actressStatus || 'active',
       embyIds: parseCommaSeparatedValues(embyIdsInput),
       roman: romanInput,
       aliases: parseCommaSeparatedValues(aliasesInput),
@@ -1269,7 +1253,7 @@ export function App() {
       tierId: input.tierId,
       tierName: tierNameForInput,
       video_count: input.video_count,
-      status: input.status,
+      status: actressStatusFromCareerTo(input.career_to),
       embyIds: input.embyIds ?? [],
       roman: input.roman ?? '',
       aliases: input.aliases ?? [],
@@ -1283,9 +1267,9 @@ export function App() {
       minnano_url: input.minnano_url ?? '',
       avatar_path: input.avatar_path ?? '',
       tags: input.tags ?? [],
-      updated_at:
-        previousRow && previousRow.video_count === input.video_count
-          ? previousRow.updated_at
+      asset_expanded_at:
+        previousRow && previousRow.video_count >= input.video_count
+          ? previousRow.asset_expanded_at
           : new Date().toISOString(),
     };
     setActresses((prev) => {
@@ -1344,7 +1328,6 @@ export function App() {
       await Promise.all([loadWorkspaceData(), loadDashboardData()]);
     } catch (e) {
       setActresses(previousActresses);
-      setError(e instanceof Error ? e.message : '保存演员失败');
       appendActivity(createSimpleActivity('保存演员', e instanceof Error ? e.message : '保存演员失败', 'error', input.name));
     } finally {
       setSubmitting(false);
@@ -1361,7 +1344,6 @@ export function App() {
     setName(row.name);
     setTierId(row.tierId);
     setVideoCount(row.video_count);
-    setActressStatus(row.status || 'active');
     setEmbyIdsInput(row.embyIds.join(', '));
     setRomanInput(row.roman);
     setAliasesInput(row.aliases.join(', '));
@@ -1417,7 +1399,6 @@ export function App() {
       }
     } catch (e) {
       setActresses(previousActresses);
-      setError(e instanceof Error ? e.message : '删除演员失败');
       appendActivity(createSimpleActivity('删除演员', e instanceof Error ? e.message : '删除演员失败', 'error', target?.name ?? `演员 #${id}`));
     } finally {
       setSubmitting(false);
@@ -1470,7 +1451,7 @@ export function App() {
     ? activeTierAllActresses.filter((row) => getAssetHealthStatus(row.video_count, activeTierDetail.video_limit) !== 'healthy').length
     : 0;
   const activeTierGovernanceCount = activeTierAllActresses.filter((row) => {
-    const updatedAt = new Date(row.updated_at).getTime();
+    const updatedAt = new Date(row.asset_expanded_at).getTime();
     return !Number.isNaN(updatedAt) && updatedAt < governanceCutoff.getTime();
   }).length;
   const missingTierStoragePath = !storagePathInput.trim();
@@ -1509,6 +1490,9 @@ export function App() {
   const hasFailedActivity = visibleActivities.some(
     (activity) => activity.status.startsWith('error:') || activity.events.some((event) => event.result === 'error'),
   );
+  const retryableFailureCount = syncTaskState && isTaskTerminal(syncTaskState)
+    ? (syncTaskState.events ?? []).filter((event) => event.result === 'error').length
+    : 0;
 
   useEffect(() => {
     if (!isLogPaneOpen || terminalLines.length === 0) return;
@@ -1698,8 +1682,8 @@ export function App() {
             </div>
           </label>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button onClick={() => void onSubmitTier()} disabled={submitting}>
-              {submitting ? '保存中...' : '保存分类'}
+            <button onClick={() => void onSubmitTier()} disabled={submitting} aria-busy={submitting}>
+              保存分类
             </button>
             <button
               type="button"
@@ -1762,8 +1746,9 @@ export function App() {
                   type="button"
                   onClick={() => void onScanStorage(activeTierDetail.id)}
                   disabled={Boolean(scanStorageDisabledReason)}
+                  aria-busy={loading}
                 >
-                  {loading ? '扫描中...' : '扫描文件夹'}
+                  扫描文件夹
                 </button>
               </span>
               <span className="disabled-action-tip" title={importStorageDisabledReason}>
@@ -1771,8 +1756,9 @@ export function App() {
                   type="button"
                   onClick={() => void onBatchImportStorageFolders(activeTierDetail.id)}
                   disabled={Boolean(importStorageDisabledReason)}
+                  aria-busy={Boolean(activePollingTaskId)}
                 >
-                  {activePollingTaskId ? '任务执行中...' : '导入演员'}
+                  导入演员
                 </button>
               </span>
               <button type="button" onClick={() => void onTierSyncEmbyIds(activeTierDetail.id)} disabled={Boolean(activePollingTaskId)}>
@@ -1781,7 +1767,6 @@ export function App() {
               <button type="button" onClick={() => void onTierBulkVideoSync(activeTierDetail.id)} disabled={Boolean(activePollingTaskId)}>
                 批量刷新影片数量
               </button>
-              {tierDetailMessage ? <span style={{ color: 'var(--emerald)' }}>{tierDetailMessage}</span> : null}
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 10 }}>
@@ -1825,8 +1810,8 @@ export function App() {
                   </th>
                   <th style={{ textAlign: 'left', padding: 8 }}>资产状态</th>
                   <th style={{ textAlign: 'left', padding: 8 }}>
-                    <button type="button" className="table-sort-button" onClick={() => onSortTierActresses('updated_at')}>
-                      资产更新时间 {sortIndicator(tierActressSortKey === 'updated_at', tierActressSortDirection)}
+                    <button type="button" className="table-sort-button" onClick={() => onSortTierActresses('asset_expanded_at')}>
+                      资产扩增时间 {sortIndicator(tierActressSortKey === 'asset_expanded_at', tierActressSortDirection)}
                     </button>
                   </th>
                   <th style={{ textAlign: 'left', padding: 8 }}>操作</th>
@@ -1853,14 +1838,14 @@ export function App() {
                       </td>
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row.video_count}</td>
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row.cup || '-'}</td>
-                      <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{formatActressAge(row.birthday)}</td>
+                      <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{formatActressAge(row.birthday, row.career_to)}</td>
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>
-                        {formatActressCareerDuration(row.career_from)}
+                        {formatActressCareerDuration(row.career_from, row.career_to)}
                       </td>
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>
                         <span className={`asset-health-badge is-${health}`}>{assetHealthLabel(health)}</span>
                       </td>
-                      <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{formatDisplayDateTime(row.updated_at)}</td>
+                      <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{formatDisplayDateTime(row.asset_expanded_at)}</td>
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>
                         <button
                           aria-label={`刷新 ${row.name} 的影片数量`}
@@ -1926,11 +1911,8 @@ export function App() {
                   </select>
                 </label>
                 <label>
-                  演员状态
-                  <select value={actressStatus} onChange={(e) => setActressStatus(e.target.value)}>
-                    <option value="active">现役</option>
-                    <option value="retired">引退</option>
-                  </select>
+                  演员状态（自动）
+                  <input value={careerToInput.trim() ? '引退' : '现役'} readOnly />
                 </label>
                 <label>
                   影片数量
@@ -1987,9 +1969,10 @@ export function App() {
                   type="button"
                   onClick={() => void onFetchMinnanoProfile()}
                   disabled={minnanoFetching || !name.trim()}
+                  aria-busy={minnanoFetching}
                   title={!name.trim() ? '请先填写演员名称。' : undefined}
                 >
-                  {minnanoFetching ? '获取中...' : '获取更新'}
+                  获取更新
                 </button>
               </div>
               <div className="entity-form-grid">
@@ -2041,8 +2024,8 @@ export function App() {
             </section>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button onClick={() => void onSubmitActress()} disabled={submitting}>
-              {submitting ? '保存中...' : '保存演员'}
+            <button onClick={() => void onSubmitActress()} disabled={submitting} aria-busy={submitting}>
+              保存演员
             </button>
             <button
               type="button"
@@ -2057,30 +2040,6 @@ export function App() {
               取消
             </button>
           </div>
-        </section>
-      ) : null}
-
-      {activePollingTaskId && syncTaskState && !isTaskTerminal(syncTaskState) ? (
-        <section className="activity-inline-hint">
-          <span>
-            {syncTaskState.title ?? '后台任务'}正在执行
-            {syncTaskState.total > 0 ? `，${syncTaskState.progress}/${syncTaskState.total}` : ''}。可在右侧操作日志中查看明细。
-          </span>
-          <button type="button" onClick={() => void onCancelSyncTask()}>
-            取消任务
-          </button>
-        </section>
-      ) : null}
-
-      {syncTaskState &&
-      isTaskTerminal(syncTaskState) &&
-      (syncTaskState.summary?.error ?? 0) > 0 &&
-      (syncTaskState.events?.length ?? 0) > 0 ? (
-        <section className="activity-inline-hint">
-          <span>{syncTaskState.title ?? '后台任务'}存在失败项，可在右侧操作日志中查看明细。</span>
-          <button type="button" onClick={() => void onRetryFailedTierSync()}>
-            重试失败项 ({syncTaskState.summary?.error})
-          </button>
         </section>
       ) : null}
 
@@ -2108,7 +2067,6 @@ export function App() {
           embyApiKey={embyApiKey}
           saving={saving}
           submitting={submitting}
-          message={settingsMessage}
           tiers={tiers}
           tierStoragePaths={tierStoragePaths}
           onSelectDatabase={() => void onSelectDatabaseFile()}
@@ -2149,6 +2107,9 @@ export function App() {
         lines={terminalLines}
         bodyRef={activityLogBodyRef}
         lastLineRef={activityLogLastLineRef}
+        onCancel={activePollingTaskId ? () => void onCancelSyncTask() : undefined}
+        retryFailureCount={retryableFailureCount}
+        onRetry={retryableFailureCount > 0 ? () => void onRetryFailedTierSync() : undefined}
         onClose={() => setIsLogPaneOpen(false)}
       />
     </main>

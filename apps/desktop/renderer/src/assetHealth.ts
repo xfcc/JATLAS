@@ -1,8 +1,8 @@
 import type { DesktopActress } from '../../core/desktopDataService';
-import { parseProfileYear } from './actressProfileMetrics';
+import { getActressAge, getActressCareerDuration } from './actressProfileMetrics';
 
 export type AssetHealthStatus = 'healthy' | 'warning' | 'overloaded';
-export type ActressSortKey = 'video_count' | 'cup' | 'age' | 'career_duration' | 'updated_at';
+export type ActressSortKey = 'video_count' | 'cup' | 'age' | 'career_duration' | 'asset_expanded_at';
 export type SortDirection = 'asc' | 'desc';
 
 export function getAssetHealthStatus(videoCount: number, videoLimit: number | null): AssetHealthStatus {
@@ -33,14 +33,12 @@ function sortableCup(value: string) {
   return match[0].split('').reduce((rank, char) => rank * 26 + (char.charCodeAt(0) - 64), 0);
 }
 
-function sortableAge(birthday: string) {
-  const year = parseProfileYear(birthday);
-  return year === null ? Number.POSITIVE_INFINITY : -year;
+function sortableAge(row: DesktopActress) {
+  return getActressAge(row.birthday, row.career_to) ?? Number.POSITIVE_INFINITY;
 }
 
-function sortableCareerDuration(careerFrom: string) {
-  const year = parseProfileYear(careerFrom);
-  return year === null ? Number.POSITIVE_INFINITY : -year;
+function sortableCareerDuration(row: DesktopActress) {
+  return getActressCareerDuration(row.career_from, row.career_to) ?? Number.POSITIVE_INFINITY;
 }
 
 export function sortActresses(
@@ -66,8 +64,8 @@ export function sortActresses(
         result = aCup - bCup;
       }
     } else if (sortKey === 'age') {
-      const aAge = sortableAge(a.birthday);
-      const bAge = sortableAge(b.birthday);
+      const aAge = sortableAge(a);
+      const bAge = sortableAge(b);
       if (!Number.isFinite(aAge) && !Number.isFinite(bAge)) {
         result = 0;
       } else if (!Number.isFinite(aAge)) {
@@ -78,8 +76,8 @@ export function sortActresses(
         result = aAge - bAge;
       }
     } else if (sortKey === 'career_duration') {
-      const aCareer = sortableCareerDuration(a.career_from);
-      const bCareer = sortableCareerDuration(b.career_from);
+      const aCareer = sortableCareerDuration(a);
+      const bCareer = sortableCareerDuration(b);
       if (!Number.isFinite(aCareer) && !Number.isFinite(bCareer)) {
         result = 0;
       } else if (!Number.isFinite(aCareer)) {
@@ -90,7 +88,7 @@ export function sortActresses(
         result = aCareer - bCareer;
       }
     } else {
-      result = sortableTime(a.updated_at) - sortableTime(b.updated_at);
+      result = sortableTime(a.asset_expanded_at) - sortableTime(b.asset_expanded_at);
     }
     return result === 0 ? a.name.localeCompare(b.name, 'zh-CN') : result * multiplier;
   });

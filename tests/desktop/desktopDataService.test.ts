@@ -26,7 +26,7 @@ const tier = {
   updated_at: new Date('2026-06-01T00:00:00.000Z'),
 };
 
-function actressRow(videoCount: number, assetUpdatedAt: Date) {
+function actressRow(videoCount: number, assetUpdatedAt: Date, careerTo = '') {
   return {
     id: 128,
     name: 'Mikami Yua',
@@ -43,7 +43,7 @@ function actressRow(videoCount: number, assetUpdatedAt: Date) {
     waist: '',
     hip: '',
     career_from: '',
-    career_to: '',
+    career_to: careerTo,
     minnano_url: '',
     avatar_path: '',
     measurements: '',
@@ -58,16 +58,16 @@ function actressRow(videoCount: number, assetUpdatedAt: Date) {
   };
 }
 
-function input(videoCount: number): DesktopActressInput {
+function input(videoCount: number, careerTo = ''): DesktopActressInput {
   return {
     name: 'Mikami Yua',
     tierId: 1,
     video_count: videoCount,
-    status: 'active',
     embyIds: [],
     aliases: [],
     avatar_path: '',
     minnano_url: '',
+    career_to: careerTo,
     tags: [],
   };
 }
@@ -94,10 +94,10 @@ describe('desktop data service actress asset update time', () => {
       }),
     );
     expect(prismaMock.assetLog.create).not.toHaveBeenCalled();
-    expect(updated.updated_at).toBe('2026-06-01T00:00:00.000Z');
+    expect(updated.asset_expanded_at).toBe('2026-06-01T00:00:00.000Z');
   });
 
-  it('updates asset update time when video count changes', async () => {
+  it('updates asset expansion time when video count increases', async () => {
     const oldAssetUpdatedAt = new Date('2026-06-01T00:00:00.000Z');
     const newAssetUpdatedAt = new Date('2026-06-05T00:00:00.000Z');
     prismaMock.actress.findUnique.mockResolvedValue(actressRow(18, oldAssetUpdatedAt) as never);
@@ -115,7 +115,25 @@ describe('desktop data service actress asset update time', () => {
         data: expect.objectContaining({ video_delta: 3 }),
       }),
     );
-    expect(updated.updated_at).toBe('2026-06-05T00:00:00.000Z');
+    expect(updated.asset_expanded_at).toBe('2026-06-05T00:00:00.000Z');
+  });
+
+  it('keeps asset expansion time when video count decreases', async () => {
+    const assetExpandedAt = new Date('2026-06-01T00:00:00.000Z');
+    prismaMock.actress.findUnique.mockResolvedValue(actressRow(21, assetExpandedAt) as never);
+    prismaMock.actress.update.mockResolvedValue(actressRow(18, assetExpandedAt) as never);
+
+    const updated = await updateDesktopActress(128, input(18));
+
+    expect(prismaMock.actress.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ asset_updated_at: expect.any(Date) }),
+      }),
+    );
+    expect(prismaMock.assetLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ video_delta: -3 }) }),
+    );
+    expect(updated.asset_expanded_at).toBe('2026-06-01T00:00:00.000Z');
   });
 
   it('creates an actress and its asset log in one transaction', async () => {
@@ -129,6 +147,19 @@ describe('desktop data service actress asset update time', () => {
     expect(prismaMock.assetLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ actress_id: 128, action_type: 'CREATE', video_delta: 18 }),
     });
+  });
+
+  it('derives retired status from career end time instead of accepting a manual status', async () => {
+    const created = actressRow(18, new Date('2026-06-01T00:00:00.000Z'), '2024') as never;
+    prismaMock.actress.create.mockResolvedValue(created);
+    prismaMock.assetLog.create.mockResolvedValue({} as never);
+
+    const result = await createDesktopActress(input(18, '2024'));
+
+    expect(prismaMock.actress.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ career_to: '2024', status: 'retired' }) }),
+    );
+    expect(result.status).toBe('retired');
   });
 
   it('deletes an actress and writes its asset log in one transaction', async () => {

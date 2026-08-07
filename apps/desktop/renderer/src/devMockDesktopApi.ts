@@ -9,16 +9,16 @@ const tiers: DesktopTier[] = [
 
 const baseActress = {
   status: 'active', embyIds: ['12345'], roman: '', aliases: [], birthday: '1995-04-12', cup: 'D', bust: '86', waist: '58', hip: '87',
-  career_from: '2018', career_to: '', minnano_url: '', avatar_path: '', tags: [], updated_at: '2026-08-01T10:00:00.000Z',
+  career_from: '2018', career_to: '', minnano_url: '', avatar_path: '', tags: [], asset_expanded_at: '2026-08-01T10:00:00.000Z',
 };
 
 const actresses: DesktopActress[] = [
   { ...baseActress, id: 1, name: '青山夏子', tierId: 1, tierName: '核心收藏', video_count: 92 },
-  { ...baseActress, id: 2, name: '林田美月', tierId: 1, tierName: '核心收藏', video_count: 64, updated_at: '2026-06-18T10:00:00.000Z' },
+  { ...baseActress, id: 2, name: '林田美月', tierId: 1, tierName: '核心收藏', video_count: 64, asset_expanded_at: '2026-06-18T10:00:00.000Z' },
   { ...baseActress, id: 3, name: '白石千寻', tierId: 1, tierName: '核心收藏', video_count: 37 },
   { ...baseActress, id: 4, name: '川島遗音', tierId: 2, tierName: '常规收藏', video_count: 45, embyIds: [] },
   { ...baseActress, id: 5, name: '高桥未来', tierId: 2, tierName: '常规收藏', video_count: 28 },
-  { ...baseActress, id: 6, name: '松田海', tierId: 3, tierName: '待整理', video_count: 31, status: 'retired' },
+  { ...baseActress, id: 6, name: '松田海', tierId: 3, tierName: '待整理', video_count: 31, status: 'retired', career_to: '2024' },
 ];
 
 const dashboard: DesktopDashboardStats = {
