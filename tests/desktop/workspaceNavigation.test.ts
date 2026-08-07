@@ -3,9 +3,9 @@ import { buildAssetCategoryCards, workspaceTabs } from '../../apps/desktop/rende
 describe('workspace navigation', () => {
   it('uses asset-centered top-level tabs', () => {
     expect(workspaceTabs).toEqual([
-      { key: 'intro', label: '介绍', englishLabel: 'Intro' },
-      { key: 'assets', label: '资产', englishLabel: 'Assets' },
-      { key: 'config', label: '配置', englishLabel: 'Config' },
+      { key: 'intro', label: '介绍' },
+      { key: 'assets', label: '资产' },
+      { key: 'config', label: '配置' },
     ]);
   });
 

@@ -2,8 +2,8 @@ import { prisma } from './prismaClient';
 import {
   clearDesktopTaskCancel,
   createDesktopTaskId,
-  desktopTasks,
   isDesktopTaskCancelRequested,
+  setDesktopTaskState,
   type StorageImportSummary,
   type TaskActivityEvent,
 } from './desktopTaskStore';
@@ -65,7 +65,7 @@ function buildStorageImportSummary(stats: StorageImportStats): StorageImportSumm
 export function startDesktopStorageImportTask(tierId: number, folderNames: string[], opts?: { onCompleted?: () => void }) {
   const taskId = createDesktopTaskId();
   const startedAt = new Date().toISOString();
-  desktopTasks.set(taskId, {
+  setDesktopTaskState(taskId, {
     taskId,
     kind: 'storage-import',
     title: '批量导入演员',
@@ -80,7 +80,7 @@ export function startDesktopStorageImportTask(tierId: number, folderNames: strin
     try {
       const tier = await prisma.tier.findUnique({ where: { id: tierId } });
       if (!tier) {
-        desktopTasks.set(taskId, {
+        setDesktopTaskState(taskId, {
           taskId,
           kind: 'storage-import',
           title: '批量导入演员',
@@ -122,7 +122,7 @@ export function startDesktopStorageImportTask(tierId: number, folderNames: strin
       };
 
       const flush = (done: number, currentItem: string, last?: TaskActivityEvent) => {
-        desktopTasks.set(taskId, {
+        setDesktopTaskState(taskId, {
           taskId,
           kind: 'storage-import',
           title: '批量导入演员',
@@ -144,7 +144,7 @@ export function startDesktopStorageImportTask(tierId: number, folderNames: strin
         });
       };
 
-      desktopTasks.set(taskId, {
+      setDesktopTaskState(taskId, {
         taskId,
         kind: 'storage-import',
         title: '批量导入演员',
@@ -159,7 +159,7 @@ export function startDesktopStorageImportTask(tierId: number, folderNames: strin
 
       for (let i = 0; i < folderNames.length; i++) {
         if (isDesktopTaskCancelRequested(taskId)) {
-          desktopTasks.set(taskId, {
+          setDesktopTaskState(taskId, {
             taskId,
             kind: 'storage-import',
             title: '批量导入演员',
@@ -268,7 +268,7 @@ export function startDesktopStorageImportTask(tierId: number, folderNames: strin
         }
       }
 
-      desktopTasks.set(taskId, {
+      setDesktopTaskState(taskId, {
         taskId,
         kind: 'storage-import',
         title: '批量导入演员',

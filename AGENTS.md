@@ -10,6 +10,8 @@ Treat `dict/` as the project memory layer. Do not rely on chat history alone for
 
 `dict/` records should be written in Chinese by default. The purpose is to make project thinking visible and understandable to both people and future AI agents. Use English only for code identifiers, commands, file paths, package names, API names, error messages, branch/commit names, or exact UI copy that must remain English.
 
+Start project-knowledge lookup from `dict/index.md` for private local records and `docs/index.md` for public documentation. Use `dict/log.md` and `docs/log.md` to understand knowledge-base maintenance history.
+
 ## When to Write to `dict/`
 
 Create or update a Markdown record when work introduces any of the following:

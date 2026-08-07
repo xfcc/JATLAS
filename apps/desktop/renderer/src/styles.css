@@ -1856,7 +1856,6 @@ body {
   }
 
   .workspace-header {
-    display: grid;
     padding: 16px 18px 12px;
   }
 
@@ -2004,4 +2003,126 @@ body {
 :root[data-theme='terminal-light'] .danger-action-button:hover:not(:disabled) {
   color: #ffffff !important;
   background: var(--red) !important;
+}
+.assets-overview {
+  margin-bottom: 24px;
+}
+
+.asset-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.asset-metric-card,
+.empty-state {
+  padding: 12px;
+  border: 1px solid var(--line);
+}
+
+.asset-metric-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.asset-metric-value {
+  margin-top: 4px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+.asset-log-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+}
+
+.asset-log-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+}
+
+.asset-log-table th,
+.asset-log-table td {
+  padding: 8px;
+  text-align: left;
+}
+
+.asset-log-table td {
+  border-top: 1px solid var(--line-soft);
+}
+.settings-section {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+}
+
+.settings-section h2,
+.section-heading-row h2 {
+  margin: 0;
+}
+
+.settings-form {
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+  margin-top: 16px;
+}
+
+.settings-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-form input,
+.settings-form select {
+  width: 100%;
+}
+
+.settings-path-row,
+.settings-actions,
+.section-heading-row,
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-path-row button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.settings-actions span {
+  color: var(--emerald);
+}
+
+.section-heading-row {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.settings-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+}
+
+.settings-table {
+  width: 100%;
+  min-width: 840px;
+  border-collapse: collapse;
+}
+
+.settings-table th,
+.settings-table td {
+  padding: 8px;
+  text-align: left;
+}
+
+.settings-table td {
+  border-top: 1px solid var(--line-soft);
 }

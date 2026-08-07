@@ -5,8 +5,12 @@ import { IPC_CHANNELS } from '../shared/ipc';
 import { getDesktopHealthSnapshotCore } from '../core/desktopProbeService';
 import {
   applyDesktopRuntimeEnv,
+  clearDesktopPreviousRuntimeConfig,
+  clearDesktopRuntimeConfig,
   getDesktopConfigPath,
+  loadDesktopPreviousRuntimeConfig,
   loadDesktopRuntimeConfig,
+  saveDesktopPreviousRuntimeConfig,
   saveDesktopRuntimeConfig,
   type DesktopRuntimeConfig,
 } from '../core/configService';
@@ -41,7 +45,7 @@ import {
   startDesktopTierVideoCountSyncTask,
 } from '../core/desktopTaskSyncService';
 
-let isDesktopAuthenticated = false;
+let isDesktopReady = false;
 
 function databaseUrlFromFilePath(filePath: string) {
   return `file:${filePath.replace(/\\/g, '/')}`;
@@ -55,9 +59,9 @@ function getDefaultDatabaseFile(userDataPath: string) {
   };
 }
 
-function ensureAuthenticated() {
-  if (!isDesktopAuthenticated) {
-    throw new Error('请先完成数据库选择。');
+function ensureDesktopReady() {
+  if (!isDesktopReady) {
+    throw new Error('请先完成数据库选择与初始化。');
   }
 }
 
@@ -66,7 +70,7 @@ function migrationRequiredState(
   migration: DatabaseMigrationStatus & { backupPath?: string },
   message = '检测到旧版本数据库，需要先升级数据库。',
 ): DesktopBootstrapState {
-  isDesktopAuthenticated = false;
+  isDesktopReady = false;
   return {
     configured: true,
     initialized: false,
@@ -86,7 +90,7 @@ async function initializeConfiguredDatabase(config: DesktopRuntimeConfig, config
   const workspaceRoot = path.resolve(__dirname, '../../../..');
   await initializeDatabaseForDesktop(config, workspaceRoot);
   await resetDesktopPrismaClient();
-  isDesktopAuthenticated = true;
+  isDesktopReady = true;
   return {
     configured: true,
     initialized: true,
@@ -152,7 +156,7 @@ function registerIpcHandlers() {
     try {
       return await initializeConfiguredDatabase(config, configPath, 'Desktop config loaded.');
     } catch (e) {
-      isDesktopAuthenticated = false;
+  isDesktopReady = false;
       return {
         configured: true,
         initialized: false,
@@ -169,15 +173,30 @@ function registerIpcHandlers() {
     async (_event, config: DesktopRuntimeConfig): Promise<DesktopBootstrapState> => {
       const userDataPath = app.getPath('userData');
       const configPath = getDesktopConfigPath(userDataPath);
+      const previousConfig = await loadDesktopRuntimeConfig(userDataPath);
+      const isDatabaseSwitch = Boolean(previousConfig && previousConfig.databaseUrl !== config.databaseUrl);
       applyDesktopRuntimeEnv(config);
       await resetDesktopPrismaClient();
       try {
+        const state = await initializeConfiguredDatabase(config, configPath, '配置已保存，数据库已初始化。');
+        if (state.migration?.required && isDatabaseSwitch && previousConfig) {
+          await saveDesktopPreviousRuntimeConfig(userDataPath, previousConfig);
+        } else if (!state.migration?.required) {
+          await clearDesktopPreviousRuntimeConfig(userDataPath);
+        }
         await saveDesktopRuntimeConfig(userDataPath, config);
-        return await initializeConfiguredDatabase(config, configPath, 'Config saved and database initialized.');
+        return state;
       } catch (e) {
-        isDesktopAuthenticated = false;
+        if (isDatabaseSwitch && previousConfig) {
+          await saveDesktopRuntimeConfig(userDataPath, previousConfig);
+          applyDesktopRuntimeEnv(previousConfig);
+          await resetDesktopPrismaClient();
+          await initializeConfiguredDatabase(previousConfig, configPath, '已恢复原数据库。');
+          throw new Error(`数据库切换失败，已恢复原数据库：${e instanceof Error ? e.message : '初始化失败'}`);
+        }
+  isDesktopReady = false;
         return {
-          configured: true,
+          configured: Boolean(previousConfig),
           initialized: false,
           configPath,
           message: e instanceof Error ? e.message : '数据库初始化失败。',
@@ -211,7 +230,8 @@ function registerIpcHandlers() {
       const workspaceRoot = path.resolve(__dirname, '../../../..');
       await initializeDatabaseForDesktop(config, workspaceRoot);
       await resetDesktopPrismaClient();
-      isDesktopAuthenticated = true;
+  isDesktopReady = true;
+      await clearDesktopPreviousRuntimeConfig(userDataPath);
       return {
         configured: true,
         initialized: true,
@@ -220,7 +240,7 @@ function registerIpcHandlers() {
         migration: migration ? { ...migration, required: false, currentVersion: migration.targetVersion, backupPath } : undefined,
       };
     } catch (e) {
-      isDesktopAuthenticated = false;
+  isDesktopReady = false;
       return {
         configured: true,
         initialized: false,
@@ -231,60 +251,75 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.handle(IPC_CHANNELS.CANCEL_DATABASE_MIGRATION, async (): Promise<DesktopBootstrapState> => {
+    const userDataPath = app.getPath('userData');
+    const configPath = getDesktopConfigPath(userDataPath);
+    const previousConfig = await loadDesktopPreviousRuntimeConfig(userDataPath);
+    if (!previousConfig) {
+      await clearDesktopRuntimeConfig(userDataPath);
+      await resetDesktopPrismaClient();
+  isDesktopReady = false;
+      return {
+        configured: false,
+        initialized: false,
+        configPath,
+        message: '已取消数据库升级，请重新选择数据库文件。',
+      };
+    }
+
+    await saveDesktopRuntimeConfig(userDataPath, previousConfig);
+    await clearDesktopPreviousRuntimeConfig(userDataPath);
+    applyDesktopRuntimeEnv(previousConfig);
+    await resetDesktopPrismaClient();
+    return initializeConfiguredDatabase(previousConfig, configPath, '已取消切换并恢复原数据库。');
+  });
+
   ipcMain.handle(IPC_CHANNELS.GET_RUNTIME_CONFIG, async () => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return loadDesktopRuntimeConfig(app.getPath('userData'));
   });
 
   ipcMain.handle(IPC_CHANNELS.SAVE_RUNTIME_CONFIG, async (_event, config: DesktopRuntimeConfig) => {
-    ensureAuthenticated();
-    await saveDesktopRuntimeConfig(app.getPath('userData'), config);
+    ensureDesktopReady();
+    const userDataPath = app.getPath('userData');
+    const currentConfig = await loadDesktopRuntimeConfig(userDataPath);
+    if (currentConfig && currentConfig.databaseUrl !== config.databaseUrl) {
+      throw new Error('数据库文件切换必须经过初始化与版本检查。');
+    }
+    await saveDesktopRuntimeConfig(userDataPath, config);
     applyDesktopRuntimeEnv(config);
     await resetDesktopPrismaClient();
     return config;
   });
 
-  ipcMain.handle(IPC_CHANNELS.GET_AUTH_STATE, async () => ({
-    authenticated: isDesktopAuthenticated,
-  }));
-
-  ipcMain.handle(IPC_CHANNELS.LOGIN, async () => {
-    isDesktopAuthenticated = true;
-    return { authenticated: true };
-  });
-
-  ipcMain.handle(IPC_CHANNELS.LOGOUT, async () => {
-    return { authenticated: true };
-  });
-
   ipcMain.handle(IPC_CHANNELS.LIST_TIERS, async () => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return getDesktopTiers();
   });
 
   ipcMain.handle(IPC_CHANNELS.LIST_ACTRESSES, async (_event, query?: string) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return getDesktopActresses(query);
   });
 
   ipcMain.handle(IPC_CHANNELS.CREATE_ACTRESS, async (_event, input) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return createDesktopActress(input);
   });
 
   ipcMain.handle(IPC_CHANNELS.UPDATE_ACTRESS, async (_event, id: number, input) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return updateDesktopActress(id, input);
   });
 
   ipcMain.handle(IPC_CHANNELS.DELETE_ACTRESS, async (_event, id: number) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     await deleteDesktopActress(id);
     return { success: true as const };
   });
 
   ipcMain.handle(IPC_CHANNELS.FETCH_MINNANO_PROFILE, async (_event, name: string, sourceUrl?: string) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     const profile = await fetchMinnanoActressProfile(name, sourceUrl);
     if (!profile.avatarUrl) {
       return profile;
@@ -298,7 +333,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.SELECT_AVATAR_FILE, async (_event, actressName: string) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     const result = await dialog.showOpenDialog({
       title: '选择演员头像图片',
       properties: ['openFile'],
@@ -316,69 +351,69 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.CREATE_TIER, async (_event, input) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return createDesktopTier(input);
   });
 
   ipcMain.handle(IPC_CHANNELS.UPDATE_TIER, async (_event, id: number, input) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return updateDesktopTier(id, input);
   });
 
   ipcMain.handle(IPC_CHANNELS.DELETE_TIER, async (_event, id: number) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     await deleteDesktopTier(id);
     return { success: true as const };
   });
 
   ipcMain.handle(IPC_CHANNELS.GET_DASHBOARD, async () => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return getDesktopDashboardStats();
   });
 
   ipcMain.handle(IPC_CHANNELS.GET_ASSET_LOG_CHART, async () => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return getDesktopAssetLogChart();
   });
 
   ipcMain.handle(IPC_CHANNELS.START_SYNC_EMBY_IDS, async (_event, ids: number[]) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return startDesktopSyncEmbyIdsTask(ids);
   });
 
   ipcMain.handle(IPC_CHANNELS.START_SYNC_MOVIE_COUNTS, async (_event, ids: number[]) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return startDesktopSyncMovieCountsTask(ids);
   });
 
   ipcMain.handle(IPC_CHANNELS.START_TIER_VIDEO_SYNC, async (_event, tierId: number) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return startDesktopTierVideoCountSyncTask(tierId);
   });
 
   ipcMain.handle(IPC_CHANNELS.START_STORAGE_IMPORT, async (_event, tierId: number, folderNames: string[]) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return startDesktopStorageImportTask(tierId, folderNames);
   });
 
   ipcMain.handle(IPC_CHANNELS.GET_SYNC_TASK, async (_event, taskId: string) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return getDesktopTaskState(taskId);
   });
 
   ipcMain.handle(IPC_CHANNELS.CANCEL_SYNC_TASK, async (_event, taskId: string) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     requestCancelDesktopTask(taskId);
     return { ok: true as const };
   });
 
   ipcMain.handle(IPC_CHANNELS.SCAN_STORAGE, async (_event, tierId: number, rawPath: string) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return scanDesktopTierStorage(tierId, rawPath);
   });
 
   ipcMain.handle(IPC_CHANNELS.BATCH_IMPORT_STORAGE_FOLDERS, async (_event, tierId: number, folderNames: string[]) => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     return importDesktopTierFoldersAsActresses(tierId, folderNames);
   });
 
@@ -403,7 +438,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.SELECT_STORAGE_FOLDER, async () => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     const result = await dialog.showOpenDialog({
       title: '选择 NAS 或本机存储目录',
       properties: ['openDirectory', 'createDirectory'],
@@ -416,7 +451,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.OPEN_USER_DATA_FOLDER, async () => {
-    ensureAuthenticated();
+    ensureDesktopReady();
     const dir = app.getPath('userData');
     await shell.openPath(dir);
     return { ok: true as const };

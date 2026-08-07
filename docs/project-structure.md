@@ -1,3 +1,11 @@
+---
+type: reference
+title: "JATLAS 项目结构与推送边界"
+status: current
+source: existing-project-record
+updated: 2026-06-16
+tags: [project-structure, github-boundary]
+---
 # JATLAS 项目结构与推送边界
 
 本文档用于区分 GitHub 需要保留的源码结构、本机运行时文件、打包产物和项目私有记录。

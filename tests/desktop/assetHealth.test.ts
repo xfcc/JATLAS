@@ -36,7 +36,7 @@ describe('asset health helpers', () => {
     expect(assetHealthLabel(getAssetHealthStatus(100, 100))).toBe('健康');
     expect(assetHealthLabel(getAssetHealthStatus(101, 100))).toBe('预警');
     expect(assetHealthLabel(getAssetHealthStatus(120, 100))).toBe('预警');
-    expect(assetHealthLabel(getAssetHealthStatus(121, 100))).toBe('超额');
+    expect(assetHealthLabel(getAssetHealthStatus(121, 100))).toBe('超限');
   });
 
   it('sorts actresses by video count and update time', () => {

@@ -2,10 +2,10 @@ import type { DesktopDashboardStats, DesktopTier } from '../../core/desktopDataS
 
 export type WorkspaceTab = 'intro' | 'assets' | 'config';
 
-export const workspaceTabs: Array<{ key: WorkspaceTab; label: string; englishLabel: string }> = [
-  { key: 'intro', label: '介绍', englishLabel: 'Intro' },
-  { key: 'assets', label: '资产', englishLabel: 'Assets' },
-  { key: 'config', label: '配置', englishLabel: 'Config' },
+export const workspaceTabs: Array<{ key: WorkspaceTab; label: string }> = [
+  { key: 'intro', label: '介绍' },
+  { key: 'assets', label: '资产' },
+  { key: 'config', label: '配置' },
 ];
 
 export type AssetCategoryCard = {

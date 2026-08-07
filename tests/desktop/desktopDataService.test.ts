@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import type { DeepMockProxy } from 'jest-mock-extended';
 
 jest.mock('../../apps/desktop/core/prismaClient', () => {
@@ -7,7 +7,12 @@ jest.mock('../../apps/desktop/core/prismaClient', () => {
 });
 
 import { prisma } from '../../apps/desktop/core/prismaClient';
-import { updateDesktopActress, type DesktopActressInput } from '../../apps/desktop/core/desktopDataService';
+import {
+  createDesktopActress,
+  deleteDesktopActress,
+  updateDesktopActress,
+  type DesktopActressInput,
+} from '../../apps/desktop/core/desktopDataService';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 
@@ -70,6 +75,10 @@ function input(videoCount: number): DesktopActressInput {
 describe('desktop data service actress asset update time', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (prismaMock.$transaction as unknown as jest.Mock).mockImplementation(
+      async (callback: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+        callback(prismaMock as unknown as Prisma.TransactionClient),
+    );
   });
 
   it('keeps asset update time when saving profile fields without video count changes', async () => {
@@ -107,5 +116,31 @@ describe('desktop data service actress asset update time', () => {
       }),
     );
     expect(updated.updated_at).toBe('2026-06-05T00:00:00.000Z');
+  });
+
+  it('creates an actress and its asset log in one transaction', async () => {
+    const created = actressRow(18, new Date('2026-06-01T00:00:00.000Z'));
+    prismaMock.actress.create.mockResolvedValue(created as never);
+    prismaMock.assetLog.create.mockResolvedValue({} as never);
+
+    await createDesktopActress(input(18));
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(prismaMock.assetLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ actress_id: 128, action_type: 'CREATE', video_delta: 18 }),
+    });
+  });
+
+  it('deletes an actress and writes its asset log in one transaction', async () => {
+    prismaMock.actress.findUnique.mockResolvedValue(actressRow(18, new Date()) as never);
+    prismaMock.actress.delete.mockResolvedValue(actressRow(18, new Date()) as never);
+    prismaMock.assetLog.create.mockResolvedValue({} as never);
+
+    await deleteDesktopActress(128);
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(prismaMock.assetLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ actress_id: 128, action_type: 'DELETE', video_delta: -18 }),
+    });
   });
 });

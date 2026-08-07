@@ -7,11 +7,9 @@ const IPC_CHANNELS = {
   GET_DEFAULT_DATABASE_FILE: 'desktop:get-default-database-file',
   SAVE_CONFIG_AND_INIT: 'desktop:save-config-and-init',
   CONFIRM_DATABASE_MIGRATION: 'desktop:confirm-database-migration',
+  CANCEL_DATABASE_MIGRATION: 'desktop:cancel-database-migration',
   GET_RUNTIME_CONFIG: 'desktop:get-runtime-config',
   SAVE_RUNTIME_CONFIG: 'desktop:save-runtime-config',
-  GET_AUTH_STATE: 'desktop:get-auth-state',
-  LOGIN: 'desktop:login',
-  LOGOUT: 'desktop:logout',
   LIST_TIERS: 'desktop:list-tiers',
   LIST_ACTRESSES: 'desktop:list-actresses',
   CREATE_ACTRESS: 'desktop:create-actress',
@@ -45,15 +43,11 @@ type DesktopApi = {
     config: IpcInvokeMap[typeof IPC_CHANNELS.SAVE_CONFIG_AND_INIT]['args'][0],
   ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.SAVE_CONFIG_AND_INIT]['result']>;
   confirmDatabaseMigration: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.CONFIRM_DATABASE_MIGRATION]['result']>;
+  cancelDatabaseMigration: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.CANCEL_DATABASE_MIGRATION]['result']>;
   getRuntimeConfig: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.GET_RUNTIME_CONFIG]['result']>;
   saveRuntimeConfig: (
     config: IpcInvokeMap[typeof IPC_CHANNELS.SAVE_RUNTIME_CONFIG]['args'][0],
   ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.SAVE_RUNTIME_CONFIG]['result']>;
-  getAuthState: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.GET_AUTH_STATE]['result']>;
-  login: (
-    password: IpcInvokeMap[typeof IPC_CHANNELS.LOGIN]['args'][0],
-  ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.LOGIN]['result']>;
-  logout: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.LOGOUT]['result']>;
   listTiers: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.LIST_TIERS]['result']>;
   listActresses: (
     query?: IpcInvokeMap[typeof IPC_CHANNELS.LIST_ACTRESSES]['args'][0],
@@ -125,11 +119,9 @@ const desktopApi: DesktopApi = {
   getDefaultDatabaseFile: () => ipcRenderer.invoke(IPC_CHANNELS.GET_DEFAULT_DATABASE_FILE),
   saveConfigAndInit: (config) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_CONFIG_AND_INIT, config),
   confirmDatabaseMigration: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIRM_DATABASE_MIGRATION),
+  cancelDatabaseMigration: () => ipcRenderer.invoke(IPC_CHANNELS.CANCEL_DATABASE_MIGRATION),
   getRuntimeConfig: () => ipcRenderer.invoke(IPC_CHANNELS.GET_RUNTIME_CONFIG),
   saveRuntimeConfig: (config) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_RUNTIME_CONFIG, config),
-  getAuthState: () => ipcRenderer.invoke(IPC_CHANNELS.GET_AUTH_STATE),
-  login: (password) => ipcRenderer.invoke(IPC_CHANNELS.LOGIN, password),
-  logout: () => ipcRenderer.invoke(IPC_CHANNELS.LOGOUT),
   listTiers: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_TIERS),
   listActresses: (query) => ipcRenderer.invoke(IPC_CHANNELS.LIST_ACTRESSES, query),
   createActress: (input) => ipcRenderer.invoke(IPC_CHANNELS.CREATE_ACTRESS, input),

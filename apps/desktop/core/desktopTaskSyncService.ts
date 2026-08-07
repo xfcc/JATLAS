@@ -4,8 +4,8 @@ import { prisma } from './prismaClient';
 import {
   clearDesktopTaskCancel,
   createDesktopTaskId,
-  desktopTasks,
   isDesktopTaskCancelRequested,
+  setDesktopTaskState,
   type EmbyIdSyncSummary,
   type TaskActivityEvent,
   type TierSyncLogEvent,
@@ -73,7 +73,7 @@ export function startDesktopSyncEmbyIdsTask(
     status = 'processing',
     finishedAt?: string,
   ) => {
-    desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
       taskId,
       kind: 'emby-id-sync',
       title,
@@ -192,14 +192,14 @@ export function startDesktopSyncMovieCountsTask(
   opts?: { onCompleted?: () => void },
 ) {
   const taskId = createDesktopTaskId();
-  desktopTasks.set(taskId, { progress: 0, total: actressIds.length, status: 'processing' });
+  setDesktopTaskState(taskId, { progress: 0, total: actressIds.length, status: 'processing' });
 
   void (async () => {
     try {
     let successfulCount = 0;
     for (let i = 0; i < actressIds.length; i++) {
       if (isDesktopTaskCancelRequested(taskId)) {
-        desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
           progress: i,
           total: actressIds.length,
           status: 'completed:cancelled',
@@ -210,7 +210,7 @@ export function startDesktopSyncMovieCountsTask(
       try {
         const actress = await prisma.actress.findUnique({ where: { id: actressId } });
         if (!actress) {
-          desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
             progress: i + 1,
             total: actressIds.length,
             status: `processing (${successfulCount} successful)`,
@@ -220,7 +220,7 @@ export function startDesktopSyncMovieCountsTask(
         }
         const actressEmbyIds = normalizeEmbyIdList(actress.emby_id);
         if (actressEmbyIds.length === 0) {
-          desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
             progress: i + 1,
             total: actressIds.length,
             status: `processing (${successfulCount} successful)`,
@@ -249,7 +249,7 @@ export function startDesktopSyncMovieCountsTask(
         }
 
         successfulCount++;
-        desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
           progress: i + 1,
           total: actressIds.length,
           status: `processing (${successfulCount} successful)`,
@@ -261,7 +261,7 @@ export function startDesktopSyncMovieCountsTask(
         });
       } catch (e) {
         const detail = e instanceof Error ? e.message : typeof e === 'string' ? e : '同步失败';
-        desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
           progress: i + 1,
           total: actressIds.length,
           status: `processing (${successfulCount} successful)`,
@@ -270,7 +270,7 @@ export function startDesktopSyncMovieCountsTask(
       }
     }
 
-    desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
       progress: actressIds.length,
       total: actressIds.length,
       status: `completed (${successfulCount} successful)`,
@@ -287,7 +287,7 @@ export function startDesktopSyncMovieCountsTask(
 export function startDesktopTierVideoCountSyncTask(tierId: number, opts?: { onCompleted?: () => void }) {
   const taskId = createDesktopTaskId();
   const startedAt = new Date().toISOString();
-  desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
     taskId,
     kind: 'video-count-sync',
     title: '批量刷新影片数量',
@@ -301,7 +301,7 @@ export function startDesktopTierVideoCountSyncTask(tierId: number, opts?: { onCo
     try {
     const tier = await prisma.tier.findUnique({ where: { id: tierId } });
     if (!tier) {
-      desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
         taskId,
         kind: 'video-count-sync',
         title: '批量刷新影片数量',
@@ -326,7 +326,7 @@ export function startDesktopTierVideoCountSyncTask(tierId: number, opts?: { onCo
       done: number,
       last?: { name: string; result: 'success' | 'skipped' | 'error'; detail: string },
     ) => {
-      desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
         taskId,
         kind: 'video-count-sync',
         title: '批量刷新影片数量',
@@ -341,7 +341,7 @@ export function startDesktopTierVideoCountSyncTask(tierId: number, opts?: { onCo
       });
     };
 
-    desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
       taskId,
       kind: 'video-count-sync',
       title: '批量刷新影片数量',
@@ -353,7 +353,7 @@ export function startDesktopTierVideoCountSyncTask(tierId: number, opts?: { onCo
       events: [],
     });
     if (actresses.length === 0) {
-      desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
         taskId,
         kind: 'video-count-sync',
         title: '批量刷新影片数量',
@@ -372,7 +372,7 @@ export function startDesktopTierVideoCountSyncTask(tierId: number, opts?: { onCo
 
     for (let i = 0; i < actresses.length; i++) {
       if (isDesktopTaskCancelRequested(taskId)) {
-        desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
           taskId,
           kind: 'video-count-sync',
           title: '批量刷新影片数量',
@@ -475,7 +475,7 @@ export function startDesktopTierVideoCountSyncTask(tierId: number, opts?: { onCo
       }
     }
 
-    desktopTasks.set(taskId, {
+    setDesktopTaskState(taskId, {
       taskId,
       kind: 'video-count-sync',
       title: '批量刷新影片数量',

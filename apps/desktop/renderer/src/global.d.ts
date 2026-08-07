@@ -21,11 +21,9 @@ declare global {
       getDefaultDatabaseFile: () => Promise<{ filePath: string; databaseUrl: string }>;
       saveConfigAndInit: (config: DesktopRuntimeConfig) => Promise<DesktopBootstrapState>;
       confirmDatabaseMigration: () => Promise<DesktopBootstrapState>;
+      cancelDatabaseMigration: () => Promise<DesktopBootstrapState>;
       getRuntimeConfig: () => Promise<DesktopRuntimeConfig | null>;
       saveRuntimeConfig: (config: DesktopRuntimeConfig) => Promise<DesktopRuntimeConfig>;
-      getAuthState: () => Promise<{ authenticated: boolean }>;
-      login: (password: string) => Promise<{ authenticated: boolean; message?: string }>;
-      logout: () => Promise<{ authenticated: boolean }>;
       listTiers: () => Promise<DesktopTier[]>;
       listActresses: (query?: string) => Promise<DesktopActress[]>;
       createActress: (input: DesktopActressInput) => Promise<DesktopActress>;

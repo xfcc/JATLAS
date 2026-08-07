@@ -15,7 +15,7 @@ export function getAssetHealthStatus(videoCount: number, videoLimit: number | nu
 }
 
 export function assetHealthLabel(status: AssetHealthStatus) {
-  if (status === 'overloaded') return '超额';
+  if (status === 'overloaded') return '超限';
   if (status === 'warning') return '预警';
   return '健康';
 }

@@ -1,4 +1,11 @@
-import { type CSSProperties, type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import type { DesktopBootstrapState } from '../../core/bootstrapService';
 import type {
   DesktopActress,
@@ -43,12 +50,15 @@ import {
   type SortDirection,
 } from './assetHealth';
 import { getBootstrapFailureMessage } from './bootstrapState';
+import { ActivityLogPane } from './components/ActivityLogPane';
+import { AssetsOverview } from './components/AssetsOverview';
+import { IntroPage } from './components/IntroPage';
+import { SettingsPage } from './components/SettingsPage';
+import { assetMetricCopy } from './metricCopy';
 import { clampFunctionPaneWidth, defaultFunctionPaneWidth } from './splitPaneState';
-import { terminalProgressBar } from './terminalDesign';
 import { formatActivityTerminalLines, type ActivitySnapshot } from './activityTerminalFormatting';
 import {
   desktopThemeAttribute,
-  desktopThemeOptions,
   normalizeDesktopThemeMode,
   type DesktopThemeMode,
 } from './terminalTheme';
@@ -100,7 +110,7 @@ function compactTierStoragePaths(paths: Record<string, string>) {
 }
 
 function isTaskTerminal(t: TaskState) {
-  return t.status.startsWith('completed') || t.status.startsWith('error:') || t.status === 'error:tier_not_found';
+  return t.phase === 'completed' || t.phase === 'cancelled' || t.phase === 'failed';
 }
 
 function normalizeTaskEvent(event: NonNullable<TaskState['events']>[number], fallbackIndex: number): TaskActivityEvent {
@@ -379,7 +389,6 @@ function createTierFailureActivity(
 
 export function App() {
   const [bootstrap, setBootstrap] = useState<DesktopBootstrapState | null>(null);
-  const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -447,6 +456,7 @@ export function App() {
   const [tierActressSortDirection, setTierActressSortDirection] = useState<SortDirection>('desc');
   const activityLogBodyRef = useRef<HTMLDivElement | null>(null);
   const activityLogLastLineRef = useRef<HTMLDivElement | null>(null);
+  const operationPaneBodyRef = useRef<HTMLDivElement | null>(null);
   const tempIdRef = useRef(-1);
 
   const stopPoll = () => {
@@ -461,6 +471,10 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = desktopThemeAttribute(themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    operationPaneBodyRef.current?.scrollTo({ top: 0 });
+  }, [tab, editorView?.kind, editorView?.id]);
 
   useEffect(() => {
     const onResize = () => {
@@ -526,8 +540,6 @@ export function App() {
         setDatabaseUrl((current) => current === initialDatabaseUrl ? defaultUrl : current);
       }
       if (state.configured && state.initialized) {
-        const auth = await window.desktopApi.getAuthState();
-        setAuthenticated(auth.authenticated);
         const config = await window.desktopApi.getRuntimeConfig();
         if (config) {
           applyRuntimeConfigState(config);
@@ -566,7 +578,7 @@ export function App() {
   };
 
   useEffect(() => {
-    if (!bootstrap?.configured || !bootstrap?.initialized || !authenticated) {
+    if (!bootstrap?.configured || !bootstrap?.initialized) {
       return;
     }
     void (async () => {
@@ -580,7 +592,7 @@ export function App() {
         setError(e instanceof Error ? e.message : '加载数据失败');
       }
     })();
-  }, [bootstrap?.configured, bootstrap?.initialized, authenticated, tab]);
+  }, [bootstrap?.configured, bootstrap?.initialized, tab]);
 
   const beginPollTask = (taskId: string) => {
     stopPoll();
@@ -591,6 +603,7 @@ export function App() {
       title: '后台操作',
       progress: 0,
       total: 0,
+      phase: 'queued',
       status: 'starting',
       startedAt: new Date().toISOString(),
       events: [],
@@ -769,7 +782,6 @@ export function App() {
       };
       const result = await window.desktopApi.saveConfigAndInit(config);
       setBootstrap(result);
-      setAuthenticated(result.initialized);
       if (result.initialized) {
         const saved = await window.desktopApi.getRuntimeConfig();
         if (saved) {
@@ -805,7 +817,6 @@ export function App() {
     try {
       const result = await window.desktopApi.confirmDatabaseMigration();
       setBootstrap(result);
-      setAuthenticated(result.initialized);
       if (result.initialized) {
         const saved = await window.desktopApi.getRuntimeConfig();
         if (saved) {
@@ -821,15 +832,21 @@ export function App() {
     }
   };
 
-  const onCancelDatabaseMigration = () => {
-    setAuthenticated(false);
-    setBootstrap({
-      configured: false,
-      initialized: false,
-      configPath: bootstrap?.configPath ?? '',
-      message: '已暂不升级数据库。',
-    });
+  const onCancelDatabaseMigration = async () => {
+    setSaving(true);
     setError(null);
+    try {
+      const result = await window.desktopApi.cancelDatabaseMigration();
+      setBootstrap(result);
+      if (result.initialized) {
+        const restored = await window.desktopApi.getRuntimeConfig();
+        if (restored) applyRuntimeConfigState(restored);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '取消数据库升级失败');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const onSelectDatabaseFile = async () => {
@@ -869,13 +886,29 @@ export function App() {
     setSettingsMessage('');
     try {
       const nextConfig = runtimeConfigWithPaths(tierStoragePaths);
-      const saved = await window.desktopApi.saveRuntimeConfig(nextConfig);
+      const databaseChanged = Boolean(
+        runtimeConfigBaseline && runtimeConfigBaseline.databaseUrl !== nextConfig.databaseUrl,
+      );
+      if (databaseChanged) {
+        const state = await window.desktopApi.saveConfigAndInit(nextConfig);
+        setBootstrap(state);
+        if (!state.initialized) return;
+      }
+      const saved = databaseChanged
+        ? (await window.desktopApi.getRuntimeConfig()) ?? nextConfig
+        : await window.desktopApi.saveRuntimeConfig(nextConfig);
       setEmbyServerUrl(saved.embyServerUrl ?? '');
       setEmbyApiKey(saved.embyApiKey ?? '');
       setThemeMode(normalizeDesktopThemeMode(saved.themeMode));
       setStorageRootPath(saved.storageRootPath ?? '');
       setTierStoragePaths(saved.tierStoragePaths ?? {});
       setRuntimeConfigBaseline(saved);
+      if (databaseChanged) {
+        setEditorView(null);
+        setEditingId(null);
+        setQuery('');
+        await Promise.all([loadWorkspaceData(), loadDashboardData()]);
+      }
       setSettingsMessage('设置已保存。');
       appendActivity(createRuntimeSettingsActivity(getRuntimeSettingsChanges(runtimeConfigBaseline, saved)));
     } catch (e) {
@@ -1414,6 +1447,13 @@ export function App() {
     window.addEventListener('mouseup', onMouseUp);
   };
 
+  const onWorkspaceSplitterKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!isLogPaneOpen || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+    event.preventDefault();
+    const direction = event.key === 'ArrowLeft' ? -1 : 1;
+    setFunctionPaneWidth((width) => clampFunctionPaneWidth(width + direction * 24, { viewportWidth: window.innerWidth }));
+  };
+
   const activeTierDetail = editorView?.kind === 'tier-detail' ? tiers.find((row) => row.id === editorView.id) ?? null : null;
   const activeTierAllActresses = activeTierDetail ? actresses.filter((row) => row.tierId === activeTierDetail.id) : [];
   const activeTierActresses = activeTierDetail
@@ -1509,7 +1549,7 @@ export function App() {
               ))}
             </ul>
             {migration.backupPath ? <code>{migration.backupPath}</code> : null}
-            <button type="button" onClick={onCancelDatabaseMigration} disabled={saving} style={{ padding: '8px 12px' }}>
+            <button type="button" onClick={() => void onCancelDatabaseMigration()} disabled={saving} style={{ padding: '8px 12px' }}>
               暂不升级
             </button>
           </section>
@@ -1597,22 +1637,23 @@ export function App() {
 
         {!editorView ? (
           <nav className="workspace-tabs" aria-label="功能切换">
-            {workspaceTabs.map(({ key, label, englishLabel }) => (
+            {workspaceTabs.map(({ key, label }) => (
               <button
                 key={key}
                 className={tab === key ? 'workspace-tab active' : 'workspace-tab'}
+                aria-current={tab === key ? 'page' : undefined}
                 onClick={() => {
                   setEditorView(null);
                   setTab(key);
                 }}
               >
-                {label} / {englishLabel}
+                {label}
               </button>
             ))}
           </nav>
         ) : null}
 
-        <div className="operation-pane-body">
+        <div className="operation-pane-body" ref={operationPaneBodyRef}>
 
       {editorView?.kind === 'tier' ? (
         <section style={{ marginBottom: 16, padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
@@ -1690,11 +1731,15 @@ export function App() {
               <div style={{ fontSize: 20, fontWeight: 700 }}>{activeTierTotalVideoCount}</div>
             </div>
             <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>待维护</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }} title={assetMetricCopy.actressesAtOrOverLimit.description}>
+                {assetMetricCopy.actressesAtOrOverLimit.label}
+              </div>
               <div style={{ fontSize: 20, fontWeight: 700 }}>{activeTierMaintenanceCount}</div>
             </div>
             <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>待治理</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }} title={assetMetricCopy.profileNotUpdatedSixMonths.description}>
+                {assetMetricCopy.profileNotUpdatedSixMonths.label}
+              </div>
               <div style={{ fontSize: 20, fontWeight: 700 }}>{activeTierGovernanceCount}</div>
             </div>
           </div>
@@ -1818,16 +1863,17 @@ export function App() {
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{formatDisplayDateTime(row.updated_at)}</td>
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>
                         <button
+                          aria-label={`刷新 ${row.name} 的影片数量`}
                           onClick={() => void onRefreshActressVideoCount(row.id)}
                           disabled={Boolean(activePollingTaskId)}
                           style={{ marginRight: 8 }}
                         >
                           刷新
                         </button>
-                        <button onClick={() => onEdit(row)} style={{ marginRight: 8 }}>
+                        <button aria-label={`编辑演员 ${row.name}`} onClick={() => onEdit(row)} style={{ marginRight: 8 }}>
                           编辑
                         </button>
-                        <button className="danger-action-button" onClick={() => void onDelete(row.id)} disabled={submitting}>
+                        <button aria-label={`删除演员 ${row.name}`} className="danger-action-button" onClick={() => void onDelete(row.id)} disabled={submitting}>
                           删除
                         </button>
                       </td>
@@ -2038,396 +2084,73 @@ export function App() {
         </section>
       ) : null}
 
-      {!editorView && tab === 'intro' ? (
-        <div className="intro-terminal">
-          <div className="intro-bootline">&gt; 正在加载本地资产治理协议...</div>
-
-          <section className="intro-hero">
-            <div>
-              <h2>让不断膨胀的收藏重新可控</h2>
-              <p>
-                JATLAS 是面向 NAS + Emby 本地收藏结构的资产台账。它解决的不是“如何下载更多内容”，
-                而是当文件越存越多、硬盘空间持续被占用、Emby 条目和真实文件逐渐脱节时，如何把收藏重新纳入可查、可控、可维护的状态。
-              </p>
-            </div>
-            <div className="intro-status-list" aria-label="产品边界">
-              <span>[本地优先] SQLite 数据保存在本机</span>
-              <span>[治理层] 不替代 NAS，也不替代 Emby</span>
-              <span>[隐私场景] 不提供在线账号体系</span>
-              <span>[项目边界] 不提供内容下载或公开分发</span>
-            </div>
-          </section>
-
-          <section className="intro-terminal-section">
-            <h3>&gt; cat ./问题来源</h3>
-            <div className="intro-problem-grid">
-              <article>
-                <strong>收藏会自然膨胀</strong>
-                <p>没有规则时，收藏很容易变成“先存下来再说”。清理只能靠印象，硬盘报警往往才是第一次真正介入。</p>
-              </article>
-              <article>
-                <strong>空间成本会持续增加</strong>
-                <p>NAS 容量看起来很大，但高质量影片会快速吞掉空间。只靠扩容，维护成本会越来越高。</p>
-              </article>
-              <article>
-                <strong>Emby 不负责治理</strong>
-                <p>Emby 适合识别与播放，但它不会判断某个演员是否超量，也不会告诉你哪个分类需要收缩。</p>
-              </article>
-            </div>
-          </section>
-
-          <section className="intro-terminal-section">
-            <h3>&gt; ls ./治理机制</h3>
-            <div className="intro-module-list">
-              <article>
-                <span>01</span>
-                <div>
-                  <strong>用分类替代模糊喜好</strong>
-                  <p>每个演员归入明确分类，每个分类设置影片上限。核心收藏可以更宽松，边缘兴趣不再无限增长。</p>
-                </div>
-              </article>
-              <article>
-                <span>02</span>
-                <div>
-                  <strong>用风险状态暴露失控点</strong>
-                  <p>当数量接近或超过上限，JATLAS 会把压力变成可见队列。你不需要靠记忆判断哪里该整理。</p>
-                </div>
-              </article>
-              <article>
-                <span>03</span>
-                <div>
-                  <strong>和 Emby 对账</strong>
-                  <p>Emby 提供人物 ID 和影片数量，JATLAS 把这些事实写入台账，再根据规则给出治理判断。</p>
-                </div>
-              </article>
-              <article>
-                <span>04</span>
-                <div>
-                  <strong>扫描 NAS 路径</strong>
-                  <p>为分类绑定存储目录后，可以扫描演员文件夹，把已有收藏逐步纳入台账，而不是从零手动录入。</p>
-                </div>
-              </article>
-              <article>
-                <span>05</span>
-                <div>
-                  <strong>用日志理解变化</strong>
-                  <p>创建、导入、补全、刷新和失败都会进入右侧日志。长期来看，日志比一次性清理更重要。</p>
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <section className="intro-terminal-section">
-            <h3>&gt; ./开始使用 --路径</h3>
-            <ol className="intro-flow">
-              <li>
-                <span>配置</span>
-                <p>选择 SQLite 数据库文件，填写 Emby 服务地址和 API Key，创建分类，并设置每个分类的存储目录和影片上限。</p>
-              </li>
-              <li>
-                <span>进入资产</span>
-                <p>查看总体看板和分类卡片。日常不从全局演员大列表开始，而是先选择要管理的分类。</p>
-              </li>
-              <li>
-                <span>管理分类</span>
-                <p>在分类内扫描文件夹、导入演员、补全 Emby ID、刷新影片数量，并维护这个分类下的演员列表。</p>
-              </li>
-              <li>
-                <span>查看日志</span>
-                <p>右侧操作日志会保留任务进度和失败原因。修正目录、Emby 配置或演员信息后，再对失败项重试。</p>
-              </li>
-            </ol>
-          </section>
-
-          <section className="intro-terminal-section intro-boundary">
-            <h3>&gt; cat ./项目边界</h3>
-            <p>
-              JATLAS 是私人资产工作台，不是媒体播放器，也不是公开服务。它只关注一件事：
-              帮助已经使用 NAS + Emby 管理本地收藏的人，把不断膨胀的影片资产重新纳入可理解、可控制、可持续维护的状态。
-            </p>
-          </section>
-        </div>
-      ) : null}
+      {!editorView && tab === 'intro' ? <IntroPage /> : null}
 
       {!editorView && tab === 'assets' && dashboardStats && assetChart ? (
-        <div style={{ marginBottom: 24 }}>
-          <h2>当前资产状态</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-            <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>演员总数</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{dashboardStats.m1.totalCount}</div>
-            </div>
-            <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>现役 / 引退</div>
-              <div style={{ fontSize: 18 }}>
-                {dashboardStats.m1.activeCount} / {dashboardStats.m1.retiredCount}
-              </div>
-            </div>
-            <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>影片总量</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{dashboardStats.m1.totalAssets}</div>
-            </div>
-            <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>超额资产</div>
-              <div style={{ fontSize: 18 }}>{dashboardStats.m1.overloadedAssets}</div>
-            </div>
-            <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>待绑定 Emby</div>
-              <div style={{ fontSize: 18 }}>{dashboardStats.m2.pendingEmbyLink}</div>
-            </div>
-            <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>待治理项</div>
-              <div style={{ fontSize: 18 }}>{dashboardStats.m2.pendingManagement}</div>
-            </div>
-            <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>30 天未更新</div>
-              <div style={{ fontSize: 18 }}>{dashboardStats.m2.pendingUpdate}</div>
-            </div>
-          </div>
-
-          <h2>分类</h2>
-          {assetCategoryCards.length > 0 ? (
-            <div className="asset-category-grid">
-              {assetCategoryCards.map((card) => (
-                <button
-                  type="button"
-                  className="asset-category-card"
-                  key={card.id}
-                  onClick={() => {
-                    const tier = tiers.find((row) => row.id === card.id);
-                    if (tier) void onOpenTierDetail(tier);
-                  }}
-                  >
-                    <span className="asset-category-card-top">
-                      <strong>{card.name}</strong>
-                    </span>
-                  <span className="asset-category-card-stats">
-                    <span>
-                      <small>演员</small>
-                      <b>{card.actressCount}</b>
-                    </span>
-                    <span>
-                      <small>影片</small>
-                      <b>{card.totalVideoCount}</b>
-                    </span>
-                    <span>
-                      <small>超额</small>
-                      <b>{card.overloadedVideoCount}</b>
-                    </span>
-                  </span>
-                  <span className="asset-category-progress">
-                    {terminalProgressBar(card.totalVideoCount, card.healthyCapacity, 18)} {card.usageText}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <section style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-              <p style={{ margin: 0 }}>暂无分类。请先进入配置新建分类并设置存储目录。</p>
-            </section>
-          )}
-
-          <h3>资产日志（近 6 个月）</h3>
-          <section style={{ border: '1px solid var(--line)', borderRadius: 0, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'transparent' }}>
-                  <th style={{ textAlign: 'left', padding: 8 }}>月份</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>收录扩张</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>资产入库</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>资产出库</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assetChart.map((row) => (
-                  <tr key={row.name}>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row.name}</td>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row['收录扩张']}</td>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row['资产入库']}</td>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row['资产出库']}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        </div>
+        <AssetsOverview
+          stats={dashboardStats}
+          chart={assetChart}
+          categories={assetCategoryCards}
+          onOpenCategory={(id) => {
+            const tier = tiers.find((row) => row.id === id);
+            if (tier) void onOpenTierDetail(tier);
+          }}
+        />
       ) : null}
 
       {!editorView && tab === 'assets' && (!dashboardStats || !assetChart) ? <p>正在加载资产...</p> : null}
 
       {!editorView && tab === 'config' ? (
-        <>
-        <section style={{ marginBottom: 16, padding: 12, border: '1px solid var(--line)', borderRadius: 0 }}>
-          <h3 style={{ marginTop: 0 }}>系统设置</h3>
-          <div style={{ display: 'grid', gap: 12, maxWidth: 760 }}>
-            <label>
-              数据库文件
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input readOnly style={{ width: '100%' }} value={selectedDatabasePath || databasePathFromUrl(databaseUrl)} />
-                <button type="button" onClick={onSelectDatabaseFile} style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-                  重新选择
-                </button>
-              </div>
-            </label>
-            <label>
-              视觉模式
-              <select
-                value={themeMode}
-                onChange={(e) => void onChangeThemeMode(normalizeDesktopThemeMode(e.target.value))}
-                disabled={saving}
-                style={{ width: '100%' }}
-              >
-                {desktopThemeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Emby 服务地址
-              <input
-                style={{ width: '100%' }}
-                value={embyServerUrl}
-                onChange={(e) => setEmbyServerUrl(e.target.value)}
-                placeholder="例如 http://emby.local:8096"
-              />
-            </label>
-            <label>
-              Emby API Key
-              <input
-                style={{ width: '100%' }}
-                value={embyApiKey}
-                onChange={(e) => setEmbyApiKey(e.target.value)}
-                type="password"
-                placeholder="用于演员 ID 与影片数量同步"
-              />
-            </label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button type="button" onClick={() => void onSaveRuntimeSettings()} disabled={saving}>
-                {saving ? '保存中...' : '保存设置'}
-              </button>
-              {settingsMessage ? <span style={{ color: 'var(--emerald)' }}>{settingsMessage}</span> : null}
-            </div>
-          </div>
-        </section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h2 style={{ margin: 0 }}>分类管理</h2>
-            <button type="button" onClick={onCreateTier}>
-              新建分类
-            </button>
-          </div>
-          <section style={{ border: '1px solid var(--line)', borderRadius: 0, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'transparent' }}>
-                  <th style={{ textAlign: 'left', padding: 8 }}>ID</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>名称</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>上限</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>总数量</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>演员数</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>存储目录</th>
-                  <th style={{ textAlign: 'left', padding: 8 }}>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tiers.map((row) => (
-                  <tr key={row.id}>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row.id}</td>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row.name}</td>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>
-                      {row.video_limit === null ? '不限' : row.video_limit}
-                    </td>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>
-                      {row.total_video_limit === null ? '未设置' : row.total_video_limit}
-                    </td>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row.actressCount}</td>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{tierStoragePaths[String(row.id)] || '未设置'}</td>
-                    <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>
-                      <button type="button" onClick={() => onEditTier(row)} style={{ marginRight: 8 }}>
-                        编辑
-                      </button>
-                      <button type="button" onClick={() => void onDeleteTier(row.id)} disabled={submitting}>
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {tiers.length === 0 ? (
-                  <tr>
-                    <td style={{ padding: 10 }} colSpan={7}>
-                      暂无分类。
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </section>
-        </>
+        <SettingsPage
+          databasePath={selectedDatabasePath || databasePathFromUrl(databaseUrl)}
+          themeMode={themeMode}
+          embyServerUrl={embyServerUrl}
+          embyApiKey={embyApiKey}
+          saving={saving}
+          submitting={submitting}
+          message={settingsMessage}
+          tiers={tiers}
+          tierStoragePaths={tierStoragePaths}
+          onSelectDatabase={() => void onSelectDatabaseFile()}
+          onThemeChange={(mode) => void onChangeThemeMode(mode)}
+          onEmbyServerUrlChange={setEmbyServerUrl}
+          onEmbyApiKeyChange={setEmbyApiKey}
+          onSave={() => void onSaveRuntimeSettings()}
+          onCreateTier={onCreateTier}
+          onEditTier={onEditTier}
+          onDeleteTier={(id) => void onDeleteTier(id)}
+        />
       ) : null}
 
-          {error ? <p style={{ color: 'var(--red)' }}>{error}</p> : null}
+          {error ? <p role="alert" style={{ color: 'var(--red)' }}>{error}</p> : null}
         </div>
       </section>
 
       <div
         className={`workspace-splitter ${isLogPaneOpen ? '' : 'is-disabled'}`}
         role="separator"
+        tabIndex={isLogPaneOpen ? 0 : -1}
         aria-label="调整功能区和日志区宽度"
         aria-orientation="vertical"
+        aria-valuemin={560}
+        aria-valuemax={Math.max(560, window.innerWidth - 328)}
+        aria-valuenow={Math.round(functionPaneWidth)}
         onMouseDown={isLogPaneOpen ? onStartWorkspaceResize : undefined}
+        onKeyDown={onWorkspaceSplitterKeyDown}
       >
         <span />
       </div>
 
-      <aside
-        className={`activity-log-pane ${isLogPaneOpen ? 'is-open' : 'is-collapsed'} ${hasRunningActivity ? 'is-running' : ''} ${hasFailedActivity ? 'has-failure' : ''}`}
-        aria-label="操作日志"
-      >
-        <header className="activity-panel-header activity-log-header">
-          <div>
-            <h2>操作日志</h2>
-            <p>
-              {hasRunningActivity
-                ? '有任务正在执行'
-                : hasFailedActivity
-                  ? '最近操作中存在失败项'
-                  : '最近的数据库操作与批量任务'}
-            </p>
-          </div>
-          {isLogPaneOpen ? (
-            <button
-              type="button"
-              className="activity-log-title-toggle is-in-log-pane"
-              onClick={() => setIsLogPaneOpen(false)}
-              aria-expanded={true}
-              aria-label="折叠操作日志"
-            >
-              ⇤
-            </button>
-          ) : null}
-        </header>
-        {isLogPaneOpen ? (
-          <div className="activity-panel-body activity-log-body" ref={activityLogBodyRef}>
-            {visibleActivities.length === 0 ? (
-              <div className="activity-empty">暂无操作日志。</div>
-            ) : (
-              <div className="activity-terminal-output" aria-label="终端日志输出">
-                {terminalLines
-                  .map((line, index) => (
-                    <div
-                      className={`activity-terminal-line is-${line.kind}${line.tone ? ` tone-${line.tone}` : ''}`}
-                      key={line.id}
-                      ref={index === terminalLines.length - 1 ? activityLogLastLineRef : undefined}
-                    >
-                      {line.text}
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
-        ) : null}
-      </aside>
+      <ActivityLogPane
+        open={isLogPaneOpen}
+        running={hasRunningActivity}
+        failed={hasFailedActivity}
+        hasActivities={visibleActivities.length > 0}
+        lines={terminalLines}
+        bodyRef={activityLogBodyRef}
+        lastLineRef={activityLogLastLineRef}
+        onClose={() => setIsLogPaneOpen(false)}
+      />
     </main>
   );
 }

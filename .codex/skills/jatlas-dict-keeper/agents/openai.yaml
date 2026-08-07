@@ -1,4 +1,0 @@
-interface:
-  display_name: "JATLAS Dict Keeper"
-  short_description: "Maintain JATLAS Chinese project records"
-  default_prompt: "Use $jatlas-dict-keeper to write or update a Chinese JATLAS dict record for this change."

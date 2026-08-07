@@ -22,8 +22,11 @@ export function getDesktopConfigPath(userDataPath: string) {
   return path.join(userDataPath, 'desktop-config.json');
 }
 
-export async function loadDesktopRuntimeConfig(userDataPath: string): Promise<DesktopRuntimeConfig | null> {
-  const configPath = getDesktopConfigPath(userDataPath);
+export function getDesktopPreviousConfigPath(userDataPath: string) {
+  return path.join(userDataPath, 'desktop-config.previous.json');
+}
+
+async function loadConfigFile(configPath: string): Promise<DesktopRuntimeConfig | null> {
   try {
     const raw = await fs.readFile(configPath, 'utf8');
     const parsed = JSON.parse(raw) as DesktopRuntimeConfig;
@@ -36,11 +39,38 @@ export async function loadDesktopRuntimeConfig(userDataPath: string): Promise<De
   }
 }
 
+async function writeConfigFile(configPath: string, config: DesktopRuntimeConfig) {
+  const tempPath = `${configPath}.tmp`;
+  await fs.mkdir(path.dirname(configPath), { recursive: true });
+  await fs.writeFile(tempPath, JSON.stringify(config, null, 2), { encoding: 'utf8', mode: 0o600 });
+  await fs.rename(tempPath, configPath);
+  await fs.chmod(configPath, 0o600);
+}
+
+export async function loadDesktopRuntimeConfig(userDataPath: string): Promise<DesktopRuntimeConfig | null> {
+  return loadConfigFile(getDesktopConfigPath(userDataPath));
+}
+
 export async function saveDesktopRuntimeConfig(userDataPath: string, config: DesktopRuntimeConfig) {
   const configPath = getDesktopConfigPath(userDataPath);
-  await fs.mkdir(path.dirname(configPath), { recursive: true });
-  await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+  await writeConfigFile(configPath, config);
   return configPath;
+}
+
+export async function loadDesktopPreviousRuntimeConfig(userDataPath: string) {
+  return loadConfigFile(getDesktopPreviousConfigPath(userDataPath));
+}
+
+export async function saveDesktopPreviousRuntimeConfig(userDataPath: string, config: DesktopRuntimeConfig) {
+  await writeConfigFile(getDesktopPreviousConfigPath(userDataPath), config);
+}
+
+export async function clearDesktopPreviousRuntimeConfig(userDataPath: string) {
+  await fs.rm(getDesktopPreviousConfigPath(userDataPath), { force: true });
+}
+
+export async function clearDesktopRuntimeConfig(userDataPath: string) {
+  await fs.rm(getDesktopConfigPath(userDataPath), { force: true });
 }
 
 export function applyDesktopRuntimeEnv(config: DesktopRuntimeConfig) {

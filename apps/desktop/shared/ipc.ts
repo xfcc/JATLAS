@@ -19,11 +19,9 @@ export const IPC_CHANNELS = {
   GET_DEFAULT_DATABASE_FILE: 'desktop:get-default-database-file',
   SAVE_CONFIG_AND_INIT: 'desktop:save-config-and-init',
   CONFIRM_DATABASE_MIGRATION: 'desktop:confirm-database-migration',
+  CANCEL_DATABASE_MIGRATION: 'desktop:cancel-database-migration',
   GET_RUNTIME_CONFIG: 'desktop:get-runtime-config',
   SAVE_RUNTIME_CONFIG: 'desktop:save-runtime-config',
-  GET_AUTH_STATE: 'desktop:get-auth-state',
-  LOGIN: 'desktop:login',
-  LOGOUT: 'desktop:logout',
   LIST_TIERS: 'desktop:list-tiers',
   LIST_ACTRESSES: 'desktop:list-actresses',
   CREATE_ACTRESS: 'desktop:create-actress',
@@ -70,6 +68,10 @@ export type IpcInvokeMap = {
     args: [];
     result: DesktopBootstrapState;
   };
+  [IPC_CHANNELS.CANCEL_DATABASE_MIGRATION]: {
+    args: [];
+    result: DesktopBootstrapState;
+  };
   [IPC_CHANNELS.GET_RUNTIME_CONFIG]: {
     args: [];
     result: DesktopRuntimeConfig | null;
@@ -77,18 +79,6 @@ export type IpcInvokeMap = {
   [IPC_CHANNELS.SAVE_RUNTIME_CONFIG]: {
     args: [DesktopRuntimeConfig];
     result: DesktopRuntimeConfig;
-  };
-  [IPC_CHANNELS.GET_AUTH_STATE]: {
-    args: [];
-    result: { authenticated: boolean };
-  };
-  [IPC_CHANNELS.LOGIN]: {
-    args: [string];
-    result: { authenticated: boolean; message?: string };
-  };
-  [IPC_CHANNELS.LOGOUT]: {
-    args: [];
-    result: { authenticated: boolean };
   };
   [IPC_CHANNELS.LIST_TIERS]: {
     args: [];
