@@ -2,6 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AssetsOverview } from '../../apps/desktop/renderer/src/components/AssetsOverview';
 import { ActivityLogPane } from '../../apps/desktop/renderer/src/components/ActivityLogPane';
+import { ActressNameCell } from '../../apps/desktop/renderer/src/components/ActressNameCell';
 import { IntroPage } from '../../apps/desktop/renderer/src/components/IntroPage';
 import { SettingsPage } from '../../apps/desktop/renderer/src/components/SettingsPage';
 
@@ -60,5 +61,23 @@ describe('renderer components', () => {
     expect(html).toContain('aria-label="操作日志"');
     expect(html).toContain('取消任务');
     expect(html).toContain('重试失败项 (2)');
+  });
+
+  it('marks retired actresses beside the name without adding status to active names', () => {
+    const retiredHtml = renderToStaticMarkup(React.createElement(ActressNameCell, {
+      name: '松田海',
+      retired: true,
+      missingEmbyId: false,
+    }));
+    const activeHtml = renderToStaticMarkup(React.createElement(ActressNameCell, {
+      name: '青山夏子',
+      retired: false,
+      missingEmbyId: false,
+    }));
+
+    expect(retiredHtml).toContain('class="actress-name-cell is-retired"');
+    expect(retiredHtml).toContain('aria-label="已引退"');
+    expect(retiredHtml).toContain('[引退]');
+    expect(activeHtml).not.toContain('[引退]');
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "jatlas",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "private": true,
   "main": "apps/desktop/dist-electron/electron/main.js",
   "scripts": {

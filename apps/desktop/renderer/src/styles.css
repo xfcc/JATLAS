@@ -1036,6 +1036,18 @@ pre {
   min-width: 0;
 }
 
+.actress-name-cell.is-retired .actress-name-text {
+  color: var(--muted);
+}
+
+.actress-retired-marker {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
 .actress-avatar-thumb {
   flex: 0 0 auto;
   width: 28px;

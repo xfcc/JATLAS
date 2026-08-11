@@ -52,6 +52,7 @@ import {
 } from './assetHealth';
 import { getBootstrapFailureMessage } from './bootstrapState';
 import { ActivityLogPane } from './components/ActivityLogPane';
+import { ActressNameCell } from './components/ActressNameCell';
 import { AssetsOverview } from './components/AssetsOverview';
 import { IntroPage } from './components/IntroPage';
 import { SettingsPage } from './components/SettingsPage';
@@ -448,7 +449,6 @@ export function App() {
   );
 
   const [storagePathInput, setStoragePathInput] = useState('');
-  const [storageResolved, setStorageResolved] = useState<string | null>(null);
   const [storageFolders, setStorageFolders] = useState<string[] | null>(null);
   const [tierActressSortKey, setTierActressSortKey] = useState<ActressSortKey>('video_count');
   const [tierActressSortDirection, setTierActressSortDirection] = useState<SortDirection>('desc');
@@ -740,10 +740,8 @@ export function App() {
     setLoading(true);
     setError(null);
     setStorageFolders(null);
-    setStorageResolved(null);
     try {
       const result = await window.desktopApi.scanStorage(id, storagePathInput);
-      setStorageResolved(result.resolvedPath);
       setStorageFolders(result.folders);
       appendActivity(createStorageScanActivity(result.folders, result.resolvedPath, activeTierDetail ? `${activeTierDetail.name} 分类` : undefined));
     } catch (e) {
@@ -953,7 +951,6 @@ export function App() {
   const onOpenTierDetail = async (row: DesktopTier) => {
     setEditorView({ kind: 'tier-detail', id: row.id });
     setStoragePathInput(getCachedTierStoragePath(row.id));
-    setStorageResolved(null);
     setStorageFolders(null);
     setError(null);
     setQuery('');
@@ -1735,11 +1732,6 @@ export function App() {
                 <strong>存储目录：</strong> <code>{storagePathInput.trim()}</code>
               </p>
             ) : null}
-            {storageResolved ? (
-              <p style={{ margin: 0 }}>
-                <strong>实际路径：</strong> <code>{storageResolved}</code>
-              </p>
-            ) : null}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
               <span className="disabled-action-tip" title={scanStorageDisabledReason}>
                 <button
@@ -1824,17 +1816,12 @@ export function App() {
                   return (
                     <tr key={row.id}>
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>
-                        <span className="actress-name-cell">
-                          {row.avatar_path ? (
-                            <img className="actress-avatar-thumb" src={localImageSrc(row.avatar_path)} alt="" />
-                          ) : null}
-                          {row.name}
-                          {missingEmbyId ? (
-                            <span className="missing-emby-marker" title="未绑定 Emby ID" aria-label="未绑定 Emby ID">
-                              [!]
-                            </span>
-                          ) : null}
-                        </span>
+                        <ActressNameCell
+                          name={row.name}
+                          avatarSrc={row.avatar_path ? localImageSrc(row.avatar_path) : undefined}
+                          retired={row.status === 'retired'}
+                          missingEmbyId={missingEmbyId}
+                        />
                       </td>
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row.video_count}</td>
                       <td style={{ padding: 8, borderTop: '1px solid var(--line-soft)' }}>{row.cup || '-'}</td>
@@ -1909,10 +1896,6 @@ export function App() {
                       </option>
                     ))}
                   </select>
-                </label>
-                <label>
-                  演员状态（自动）
-                  <input value={careerToInput.trim() ? '引退' : '现役'} readOnly />
                 </label>
                 <label>
                   影片数量
