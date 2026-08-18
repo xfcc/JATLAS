@@ -15,6 +15,7 @@ model Tier {
   id          Int       @id @default(autoincrement())
   name        String    @unique
   video_limit Int?
+  total_video_limit Int?
   status      String    @default("active")
 
   actresses   Actress[]
@@ -29,9 +30,35 @@ model Actress {
   tier        Tier     @relation(fields: [tierId], references: [id])
   tierId      Int
   video_count Int
+  status      String   @default("active")
   /// 演员ID 列表（SQLite 下使用 JSON 字符串存储）
   emby_id     String   @default("[]")
+  roman       String   @default("")
+  /// 别名列表（SQLite 下使用 JSON 字符串存储）
+  aliases     String   @default("[]")
+  birthday    String   @default("")
+  cup         String   @default("")
+  bust        String   @default("")
+  waist       String   @default("")
+  hip         String   @default("")
+  career_from String   @default("")
+  career_to   String   @default("")
+  minnano_url String   @default("")
+  avatar_path String   @default("")
+  /// 旧字段：保留用于从 v0.5.x 早期库迁移，界面不再使用。
+  measurements String  @default("")
+  /// 旧字段：保留用于从 v0.5.x 早期库迁移，界面不再使用。
+  birth_date  String   @default("")
+  /// 旧字段：保留用于从 v0.5.x 早期库迁移，界面不再使用。
+  career_period String @default("")
+  /// 旧字段：保留用于从 v0.5.x 早期库迁移，界面不再使用。
+  cup_size    String   @default("")
+  /// 旧字段：保留用于从 v0.5.x 早期库迁移，界面不再使用。
+  height      String   @default("")
+  /// 标签列表（SQLite 下使用 JSON 字符串存储）
+  tags        String   @default("[]")
   created_at  DateTime @default(now())
+  asset_updated_at DateTime @default(now())
   updated_at  DateTime @updatedAt
 }
 

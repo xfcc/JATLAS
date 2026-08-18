@@ -1,14 +1,54 @@
-.next
-.env.local
-.env.production
+# OS / editor
 .DS_Store
-trace
-node_modules
-backups/
+Thumbs.db
+
+# Dependencies
+node_modules/
+
+# Local project memory and private process notes
+dict/
+
+# Environment and secrets
 .env
-.vercel/
+.env.*
+!.env.example
+
+# Local databases and runtime data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
+backups/
+
+# Logs and traces
+*.log
+logs/
+trace/
+
+# Web / desktop build outputs
+.next/
+.vite/
+coverage/
+dist/
+build/
+out/
+release/
 apps/desktop/dist/
 apps/desktop/dist-electron/
-*.db
-*.sqlite
-release/
+apps/desktop/out/
+
+# Deployment / platform metadata
+.vercel/
+
+# Signing credentials and private certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+*.mobileprovision

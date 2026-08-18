@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { actressStatusFromCareerTo } from '../shared/actressProfileRules';
 import { listChildDirectoryNames, resolveStoragePath } from './storagePath';
 import { prisma } from './prismaClient';
 
@@ -6,6 +7,7 @@ export type DesktopTier = {
   id: number;
   name: string;
   video_limit: number | null;
+  total_video_limit: number | null;
   status: string;
   actressCount: number;
 };
@@ -13,6 +15,7 @@ export type DesktopTier = {
 export type DesktopTierInput = {
   name: string;
   video_limit: number | null;
+  total_video_limit: number | null;
   status: string;
 };
 
@@ -51,8 +54,21 @@ export type DesktopActress = {
   tierId: number;
   tierName: string;
   video_count: number;
+  status: string;
   embyIds: string[];
-  updated_at: string;
+  roman: string;
+  aliases: string[];
+  birthday: string;
+  cup: string;
+  bust: string;
+  waist: string;
+  hip: string;
+  career_from: string;
+  career_to: string;
+  minnano_url: string;
+  avatar_path: string;
+  tags: string[];
+  asset_expanded_at: string;
 };
 
 export type DesktopActressInput = {
@@ -60,6 +76,18 @@ export type DesktopActressInput = {
   tierId: number;
   video_count: number;
   embyIds?: string[];
+  roman?: string;
+  aliases?: string[];
+  birthday?: string;
+  cup?: string;
+  bust?: string;
+  waist?: string;
+  hip?: string;
+  career_from?: string;
+  career_to?: string;
+  minnano_url?: string;
+  avatar_path?: string;
+  tags?: string[];
 };
 
 export type DesktopStorageBatchImportResult = {
@@ -68,7 +96,7 @@ export type DesktopStorageBatchImportResult = {
   skippedEmpty: number;
 };
 
-function normalizeEmbyIds(value: string): string[] {
+function normalizeStringList(value: string): string[] {
   try {
     const parsed = JSON.parse(value) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -78,9 +106,17 @@ function normalizeEmbyIds(value: string): string[] {
   }
 }
 
-function serializeEmbyIds(ids: string[] | undefined): string {
+function normalizeEmbyIds(value: string): string[] {
+  return normalizeStringList(value);
+}
+
+function serializeStringList(ids: string[] | undefined): string {
   const clean = (ids ?? []).filter((v) => typeof v === 'string' && v.trim().length > 0);
   return JSON.stringify(clean);
+}
+
+function serializeEmbyIds(ids: string[] | undefined): string {
+  return serializeStringList(ids);
 }
 
 export async function getDesktopTiers() {
@@ -93,6 +129,7 @@ export async function getDesktopTiers() {
       id: t.id,
       name: t.name,
       video_limit: t.video_limit,
+      total_video_limit: t.total_video_limit,
       status: t.status,
       actressCount: t._count.actresses,
     }),
@@ -108,6 +145,7 @@ export async function createDesktopTier(input: DesktopTierInput) {
     data: {
       name,
       video_limit: input.video_limit,
+      total_video_limit: input.total_video_limit,
       status: input.status || 'active',
     },
   });
@@ -115,13 +153,14 @@ export async function createDesktopTier(input: DesktopTierInput) {
     id: created.id,
     name: created.name,
     video_limit: created.video_limit,
+    total_video_limit: created.total_video_limit,
     status: created.status,
     actressCount: 0,
   } satisfies DesktopTier;
 }
 
 export async function updateDesktopTier(id: number, input: Partial<DesktopTierInput>) {
-  const data: { name?: string; video_limit?: number | null; status?: string } = {};
+  const data: { name?: string; video_limit?: number | null; total_video_limit?: number | null; status?: string } = {};
   if (input.name !== undefined) {
     const name = input.name.trim();
     if (!name) {
@@ -131,6 +170,9 @@ export async function updateDesktopTier(id: number, input: Partial<DesktopTierIn
   }
   if (input.video_limit !== undefined) {
     data.video_limit = input.video_limit;
+  }
+  if (input.total_video_limit !== undefined) {
+    data.total_video_limit = input.total_video_limit;
   }
   if (input.status !== undefined) {
     data.status = input.status;
@@ -144,6 +186,7 @@ export async function updateDesktopTier(id: number, input: Partial<DesktopTierIn
     id: updated.id,
     name: updated.name,
     video_limit: updated.video_limit,
+    total_video_limit: updated.total_video_limit,
     status: updated.status,
     actressCount: updated._count.actresses,
   } satisfies DesktopTier;
@@ -164,12 +207,12 @@ export async function getDesktopDashboardStats(): Promise<DesktopDashboardStats>
   const actresses = await prisma.actress.findMany({
     select: {
       video_count: true,
+      career_to: true,
       emby_id: true,
-      updated_at: true,
+      asset_updated_at: true,
       tier: {
         select: {
           id: true,
-          status: true,
           video_limit: true,
           name: true,
         },
@@ -178,7 +221,7 @@ export async function getDesktopDashboardStats(): Promise<DesktopDashboardStats>
   });
 
   const totalCount = actresses.length;
-  const activeCount = actresses.filter((a) => a.tier.status === 'active').length;
+  const activeCount = actresses.filter((a) => actressStatusFromCareerTo(a.career_to) === 'active').length;
   const retiredCount = totalCount - activeCount;
   const totalAssets = actresses.reduce((sum, a) => sum + a.video_count, 0);
 
@@ -193,7 +236,7 @@ export async function getDesktopDashboardStats(): Promise<DesktopDashboardStats>
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const pendingUpdate = actresses.filter(
-    (a) => a.tier.status === 'active' && new Date(a.updated_at) < thirtyDaysAgo,
+    (a) => actressStatusFromCareerTo(a.career_to) === 'active' && new Date(a.asset_updated_at) < thirtyDaysAgo,
   ).length;
 
   const tierDistribution = actresses.reduce(
@@ -307,30 +350,59 @@ export async function getDesktopActresses(query?: string) {
       tierId: row.tierId,
       tierName: row.tier.name,
       video_count: row.video_count,
+      status: actressStatusFromCareerTo(row.career_to),
       embyIds: normalizeEmbyIds(row.emby_id),
-      updated_at: row.updated_at.toISOString(),
+      roman: row.roman,
+      aliases: normalizeStringList(row.aliases),
+      birthday: row.birthday || row.birth_date,
+      cup: row.cup || row.cup_size,
+      bust: row.bust,
+      waist: row.waist,
+      hip: row.hip,
+      career_from: row.career_from,
+      career_to: row.career_to,
+      minnano_url: row.minnano_url,
+      avatar_path: row.avatar_path,
+      tags: normalizeStringList(row.tags),
+      asset_expanded_at: row.asset_updated_at.toISOString(),
     }),
   );
 }
 
 export async function createDesktopActress(input: DesktopActressInput) {
-  const created = await prisma.actress.create({
-    data: {
-      name: input.name.trim(),
-      tierId: input.tierId,
-      video_count: input.video_count,
-      emby_id: serializeEmbyIds(input.embyIds),
-    },
-    include: { tier: true },
-  });
-
-  await prisma.assetLog.create({
-    data: {
-      actress_id: created.id,
-      actress_name: created.name,
-      action_type: 'CREATE',
-      video_delta: created.video_count,
-    },
+  const careerTo = input.career_to?.trim() ?? '';
+  const created = await prisma.$transaction(async (tx) => {
+    const row = await tx.actress.create({
+      data: {
+        name: input.name.trim(),
+        tierId: input.tierId,
+        video_count: input.video_count,
+        status: actressStatusFromCareerTo(careerTo),
+        emby_id: serializeEmbyIds(input.embyIds),
+        roman: input.roman?.trim() ?? '',
+        aliases: serializeStringList(input.aliases),
+        birthday: input.birthday?.trim() ?? '',
+        cup: input.cup?.trim() ?? '',
+        bust: input.bust?.trim() ?? '',
+        waist: input.waist?.trim() ?? '',
+        hip: input.hip?.trim() ?? '',
+        career_from: input.career_from?.trim() ?? '',
+        career_to: careerTo,
+        minnano_url: input.minnano_url?.trim() ?? '',
+        avatar_path: input.avatar_path?.trim() ?? '',
+        tags: serializeStringList(input.tags),
+      },
+      include: { tier: true },
+    });
+    await tx.assetLog.create({
+      data: {
+        actress_id: row.id,
+        actress_name: row.name,
+        action_type: 'CREATE',
+        video_delta: row.video_count,
+      },
+    });
+    return row;
   });
 
   return {
@@ -339,40 +411,71 @@ export async function createDesktopActress(input: DesktopActressInput) {
     tierId: created.tierId,
     tierName: created.tier.name,
     video_count: created.video_count,
+    status: actressStatusFromCareerTo(created.career_to),
     embyIds: normalizeEmbyIds(created.emby_id),
-    updated_at: created.updated_at.toISOString(),
+    roman: created.roman,
+    aliases: normalizeStringList(created.aliases),
+    birthday: created.birthday,
+    cup: created.cup,
+    bust: created.bust,
+    waist: created.waist,
+    hip: created.hip,
+    career_from: created.career_from,
+    career_to: created.career_to,
+    minnano_url: created.minnano_url,
+    avatar_path: created.avatar_path,
+    tags: normalizeStringList(created.tags),
+    asset_expanded_at: created.asset_updated_at.toISOString(),
   } as DesktopActress;
 }
 
 export async function updateDesktopActress(id: number, input: DesktopActressInput) {
-  const before = await prisma.actress.findUnique({ where: { id } });
-  if (!before) {
-    throw new Error('Actress not found');
-  }
+  const careerTo = input.career_to?.trim() ?? '';
+  const updated = await prisma.$transaction(async (tx) => {
+    const before = await tx.actress.findUnique({ where: { id } });
+    if (!before) {
+      throw new Error('Actress not found');
+    }
 
-  const updated = await prisma.actress.update({
-    where: { id },
-    data: {
-      name: input.name.trim(),
-      tierId: input.tierId,
-      video_count: input.video_count,
-      emby_id: serializeEmbyIds(input.embyIds),
-      updated_at: new Date(),
-    },
-    include: { tier: true },
-  });
-
-  const delta = updated.video_count - before.video_count;
-  if (delta !== 0) {
-    await prisma.assetLog.create({
+    const videoCountIncreased = input.video_count > before.video_count;
+    const row = await tx.actress.update({
+      where: { id },
       data: {
-        actress_id: id,
-        actress_name: updated.name,
-        action_type: 'UPDATE',
-        video_delta: delta,
+        name: input.name.trim(),
+        tierId: input.tierId,
+        video_count: input.video_count,
+        status: actressStatusFromCareerTo(careerTo),
+        emby_id: serializeEmbyIds(input.embyIds),
+        roman: input.roman?.trim() ?? '',
+        aliases: serializeStringList(input.aliases),
+        birthday: input.birthday?.trim() ?? '',
+        cup: input.cup?.trim() ?? '',
+        bust: input.bust?.trim() ?? '',
+        waist: input.waist?.trim() ?? '',
+        hip: input.hip?.trim() ?? '',
+        career_from: input.career_from?.trim() ?? '',
+        career_to: careerTo,
+        minnano_url: input.minnano_url?.trim() ?? '',
+        avatar_path: input.avatar_path?.trim() ?? '',
+        tags: serializeStringList(input.tags),
+        ...(videoCountIncreased ? { asset_updated_at: new Date() } : {}),
       },
+      include: { tier: true },
     });
-  }
+
+    const delta = row.video_count - before.video_count;
+    if (delta !== 0) {
+      await tx.assetLog.create({
+        data: {
+          actress_id: id,
+          actress_name: row.name,
+          action_type: 'UPDATE',
+          video_delta: delta,
+        },
+      });
+    }
+    return row;
+  });
 
   return {
     id: updated.id,
@@ -380,8 +483,21 @@ export async function updateDesktopActress(id: number, input: DesktopActressInpu
     tierId: updated.tierId,
     tierName: updated.tier.name,
     video_count: updated.video_count,
+    status: actressStatusFromCareerTo(updated.career_to),
     embyIds: normalizeEmbyIds(updated.emby_id),
-    updated_at: updated.updated_at.toISOString(),
+    roman: updated.roman,
+    aliases: normalizeStringList(updated.aliases),
+    birthday: updated.birthday,
+    cup: updated.cup,
+    bust: updated.bust,
+    waist: updated.waist,
+    hip: updated.hip,
+    career_from: updated.career_from,
+    career_to: updated.career_to,
+    minnano_url: updated.minnano_url,
+    avatar_path: updated.avatar_path,
+    tags: normalizeStringList(updated.tags),
+    asset_expanded_at: updated.asset_updated_at.toISOString(),
   } as DesktopActress;
 }
 
@@ -456,7 +572,20 @@ export async function importDesktopTierFoldersAsActresses(
             name,
             tierId,
             video_count: 0,
+            status: 'active',
             emby_id: serializeEmbyIds([]),
+            roman: '',
+            aliases: serializeStringList([]),
+            birthday: '',
+            cup: '',
+            bust: '',
+            waist: '',
+            hip: '',
+            career_from: '',
+            career_to: '',
+            minnano_url: '',
+            avatar_path: '',
+            tags: serializeStringList([]),
           },
           include: { tier: true },
         }),
@@ -480,8 +609,21 @@ export async function importDesktopTierFoldersAsActresses(
       tierId: row.tierId,
       tierName: row.tier.name,
       video_count: row.video_count,
+      status: actressStatusFromCareerTo(row.career_to),
       embyIds: normalizeEmbyIds(row.emby_id),
-      updated_at: row.updated_at.toISOString(),
+      roman: row.roman,
+      aliases: normalizeStringList(row.aliases),
+      birthday: row.birthday || row.birth_date,
+      cup: row.cup || row.cup_size,
+      bust: row.bust,
+      waist: row.waist,
+      hip: row.hip,
+      career_from: row.career_from,
+      career_to: row.career_to,
+      minnano_url: row.minnano_url,
+      avatar_path: row.avatar_path,
+      tags: normalizeStringList(row.tags),
+      asset_expanded_at: row.asset_updated_at.toISOString(),
     }),
   );
 
@@ -493,18 +635,20 @@ export async function importDesktopTierFoldersAsActresses(
 }
 
 export async function deleteDesktopActress(id: number) {
-  const found = await prisma.actress.findUnique({ where: { id } });
-  if (!found) {
-    throw new Error('Actress not found');
-  }
+  await prisma.$transaction(async (tx) => {
+    const found = await tx.actress.findUnique({ where: { id } });
+    if (!found) {
+      throw new Error('Actress not found');
+    }
 
-  await prisma.actress.delete({ where: { id } });
-  await prisma.assetLog.create({
-    data: {
-      actress_id: found.id,
-      actress_name: found.name,
-      action_type: 'DELETE',
-      video_delta: -found.video_count,
-    },
+    await tx.actress.delete({ where: { id } });
+    await tx.assetLog.create({
+      data: {
+        actress_id: found.id,
+        actress_name: found.name,
+        action_type: 'DELETE',
+        video_delta: -found.video_count,
+      },
+    });
   });
 }
