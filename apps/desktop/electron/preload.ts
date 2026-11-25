@@ -4,17 +4,19 @@ import type { IpcInvokeMap } from '../shared/ipc';
 const IPC_CHANNELS = {
   HEALTH_SNAPSHOT: 'desktop:health-snapshot',
   GET_BOOTSTRAP_STATE: 'desktop:get-bootstrap-state',
+  GET_DEFAULT_DATABASE_FILE: 'desktop:get-default-database-file',
   SAVE_CONFIG_AND_INIT: 'desktop:save-config-and-init',
+  CONFIRM_DATABASE_MIGRATION: 'desktop:confirm-database-migration',
+  CANCEL_DATABASE_MIGRATION: 'desktop:cancel-database-migration',
   GET_RUNTIME_CONFIG: 'desktop:get-runtime-config',
   SAVE_RUNTIME_CONFIG: 'desktop:save-runtime-config',
-  GET_AUTH_STATE: 'desktop:get-auth-state',
-  LOGIN: 'desktop:login',
-  LOGOUT: 'desktop:logout',
   LIST_TIERS: 'desktop:list-tiers',
   LIST_ACTRESSES: 'desktop:list-actresses',
   CREATE_ACTRESS: 'desktop:create-actress',
   UPDATE_ACTRESS: 'desktop:update-actress',
   DELETE_ACTRESS: 'desktop:delete-actress',
+  FETCH_MINNANO_PROFILE: 'desktop:fetch-minnano-profile',
+  SELECT_AVATAR_FILE: 'desktop:select-avatar-file',
   CREATE_TIER: 'desktop:create-tier',
   UPDATE_TIER: 'desktop:update-tier',
   DELETE_TIER: 'desktop:delete-tier',
@@ -23,6 +25,7 @@ const IPC_CHANNELS = {
   START_SYNC_EMBY_IDS: 'desktop:start-sync-emby-ids',
   START_SYNC_MOVIE_COUNTS: 'desktop:start-sync-movie-counts',
   START_TIER_VIDEO_SYNC: 'desktop:start-tier-video-sync',
+  START_STORAGE_IMPORT: 'desktop:start-storage-import',
   GET_SYNC_TASK: 'desktop:get-sync-task',
   CANCEL_SYNC_TASK: 'desktop:cancel-sync-task',
   SCAN_STORAGE: 'desktop:scan-storage',
@@ -35,18 +38,16 @@ const IPC_CHANNELS = {
 type DesktopApi = {
   getHealthSnapshot: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.HEALTH_SNAPSHOT]['result']>;
   getBootstrapState: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.GET_BOOTSTRAP_STATE]['result']>;
+  getDefaultDatabaseFile: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.GET_DEFAULT_DATABASE_FILE]['result']>;
   saveConfigAndInit: (
     config: IpcInvokeMap[typeof IPC_CHANNELS.SAVE_CONFIG_AND_INIT]['args'][0],
   ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.SAVE_CONFIG_AND_INIT]['result']>;
+  confirmDatabaseMigration: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.CONFIRM_DATABASE_MIGRATION]['result']>;
+  cancelDatabaseMigration: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.CANCEL_DATABASE_MIGRATION]['result']>;
   getRuntimeConfig: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.GET_RUNTIME_CONFIG]['result']>;
   saveRuntimeConfig: (
     config: IpcInvokeMap[typeof IPC_CHANNELS.SAVE_RUNTIME_CONFIG]['args'][0],
   ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.SAVE_RUNTIME_CONFIG]['result']>;
-  getAuthState: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.GET_AUTH_STATE]['result']>;
-  login: (
-    password: IpcInvokeMap[typeof IPC_CHANNELS.LOGIN]['args'][0],
-  ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.LOGIN]['result']>;
-  logout: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.LOGOUT]['result']>;
   listTiers: () => Promise<IpcInvokeMap[typeof IPC_CHANNELS.LIST_TIERS]['result']>;
   listActresses: (
     query?: IpcInvokeMap[typeof IPC_CHANNELS.LIST_ACTRESSES]['args'][0],
@@ -61,6 +62,13 @@ type DesktopApi = {
   deleteActress: (
     id: IpcInvokeMap[typeof IPC_CHANNELS.DELETE_ACTRESS]['args'][0],
   ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.DELETE_ACTRESS]['result']>;
+  fetchMinnanoProfile: (
+    name: IpcInvokeMap[typeof IPC_CHANNELS.FETCH_MINNANO_PROFILE]['args'][0],
+    sourceUrl?: IpcInvokeMap[typeof IPC_CHANNELS.FETCH_MINNANO_PROFILE]['args'][1],
+  ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.FETCH_MINNANO_PROFILE]['result']>;
+  selectAvatarFile: (
+    actressName: IpcInvokeMap[typeof IPC_CHANNELS.SELECT_AVATAR_FILE]['args'][0],
+  ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.SELECT_AVATAR_FILE]['result']>;
   createTier: (
     input: IpcInvokeMap[typeof IPC_CHANNELS.CREATE_TIER]['args'][0],
   ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.CREATE_TIER]['result']>;
@@ -82,6 +90,10 @@ type DesktopApi = {
   startTierVideoSync: (
     tierId: IpcInvokeMap[typeof IPC_CHANNELS.START_TIER_VIDEO_SYNC]['args'][0],
   ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.START_TIER_VIDEO_SYNC]['result']>;
+  startStorageImport: (
+    tierId: IpcInvokeMap[typeof IPC_CHANNELS.START_STORAGE_IMPORT]['args'][0],
+    folderNames: IpcInvokeMap[typeof IPC_CHANNELS.START_STORAGE_IMPORT]['args'][1],
+  ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.START_STORAGE_IMPORT]['result']>;
   getSyncTask: (
     taskId: IpcInvokeMap[typeof IPC_CHANNELS.GET_SYNC_TASK]['args'][0],
   ) => Promise<IpcInvokeMap[typeof IPC_CHANNELS.GET_SYNC_TASK]['result']>;
@@ -104,17 +116,19 @@ type DesktopApi = {
 const desktopApi: DesktopApi = {
   getHealthSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.HEALTH_SNAPSHOT),
   getBootstrapState: () => ipcRenderer.invoke(IPC_CHANNELS.GET_BOOTSTRAP_STATE),
+  getDefaultDatabaseFile: () => ipcRenderer.invoke(IPC_CHANNELS.GET_DEFAULT_DATABASE_FILE),
   saveConfigAndInit: (config) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_CONFIG_AND_INIT, config),
+  confirmDatabaseMigration: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIRM_DATABASE_MIGRATION),
+  cancelDatabaseMigration: () => ipcRenderer.invoke(IPC_CHANNELS.CANCEL_DATABASE_MIGRATION),
   getRuntimeConfig: () => ipcRenderer.invoke(IPC_CHANNELS.GET_RUNTIME_CONFIG),
   saveRuntimeConfig: (config) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_RUNTIME_CONFIG, config),
-  getAuthState: () => ipcRenderer.invoke(IPC_CHANNELS.GET_AUTH_STATE),
-  login: (password) => ipcRenderer.invoke(IPC_CHANNELS.LOGIN, password),
-  logout: () => ipcRenderer.invoke(IPC_CHANNELS.LOGOUT),
   listTiers: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_TIERS),
   listActresses: (query) => ipcRenderer.invoke(IPC_CHANNELS.LIST_ACTRESSES, query),
   createActress: (input) => ipcRenderer.invoke(IPC_CHANNELS.CREATE_ACTRESS, input),
   updateActress: (id, input) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_ACTRESS, id, input),
   deleteActress: (id) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_ACTRESS, id),
+  fetchMinnanoProfile: (name, sourceUrl) => ipcRenderer.invoke(IPC_CHANNELS.FETCH_MINNANO_PROFILE, name, sourceUrl),
+  selectAvatarFile: (actressName) => ipcRenderer.invoke(IPC_CHANNELS.SELECT_AVATAR_FILE, actressName),
   createTier: (input) => ipcRenderer.invoke(IPC_CHANNELS.CREATE_TIER, input),
   updateTier: (id, input) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_TIER, id, input),
   deleteTier: (id) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_TIER, id),
@@ -123,6 +137,7 @@ const desktopApi: DesktopApi = {
   startSyncEmbyIds: (ids) => ipcRenderer.invoke(IPC_CHANNELS.START_SYNC_EMBY_IDS, ids),
   startSyncMovieCounts: (ids) => ipcRenderer.invoke(IPC_CHANNELS.START_SYNC_MOVIE_COUNTS, ids),
   startTierVideoSync: (tierId) => ipcRenderer.invoke(IPC_CHANNELS.START_TIER_VIDEO_SYNC, tierId),
+  startStorageImport: (tierId, folderNames) => ipcRenderer.invoke(IPC_CHANNELS.START_STORAGE_IMPORT, tierId, folderNames),
   getSyncTask: (taskId) => ipcRenderer.invoke(IPC_CHANNELS.GET_SYNC_TASK, taskId),
   cancelSyncTask: (taskId) => ipcRenderer.invoke(IPC_CHANNELS.CANCEL_SYNC_TASK, taskId),
   scanStorage: (tierId, path) => ipcRenderer.invoke(IPC_CHANNELS.SCAN_STORAGE, tierId, path),

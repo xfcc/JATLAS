@@ -7,7 +7,7 @@
   },
   "plugins": ["@typescript-eslint"],
   "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
-  "ignorePatterns": ["node_modules/", "apps/desktop/dist/", "apps/desktop/dist-electron/", ".next/"],
+  "ignorePatterns": ["node_modules/", "apps/desktop/dist/", "apps/desktop/dist-electron/"],
   "rules": {
     "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }]
   }

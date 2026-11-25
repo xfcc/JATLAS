@@ -2,6 +2,40 @@ interface EmbyPerson {
   Id: string;
 }
 
+interface EmbyItemCountResponse {
+  TotalRecordCount?: number;
+}
+
+interface EmbyPersonSearchResponse {
+  Items?: unknown;
+}
+
+const EMBY_REQUEST_TIMEOUT_MS = 15_000;
+
+async function fetchEmby(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), EMBY_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Emby 请求超时，请检查服务地址和网络连接。');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function isEmbyPerson(value: unknown): value is EmbyPerson {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'Id' in value &&
+    typeof (value as { Id?: unknown }).Id === 'string'
+  );
+}
+
 export async function fetchActressCountFromEmby(embyPersonIds: string[]): Promise<number> {
   if (embyPersonIds.length === 0) {
     return 0;
@@ -23,22 +57,19 @@ export async function fetchActressCountFromEmby(embyPersonIds: string[]): Promis
         api_key: apiKey,
       });
       const url = `${baseUrl}/emby/Items?${params.toString()}`;
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          console.error(`Failed to fetch data from Emby for ID ${personId}: ${response.statusText}`);
-          return 0;
-        }
-        const data = await response.json();
-        return data.TotalRecordCount || 0;
-      } catch (error) {
-        console.error(`Error fetching actress count from Emby for ID ${personId}:`, error);
-        return 0;
+      const response = await fetchEmby(url);
+      if (!response.ok) {
+        throw new Error(`Emby 影片数量请求失败：${response.status} ${response.statusText}`.trim());
       }
+      const data = (await response.json()) as EmbyItemCountResponse;
+      if (typeof data.TotalRecordCount !== 'number' || data.TotalRecordCount < 0) {
+        throw new Error(`Emby 影片数量响应无效：${personId}`);
+      }
+      return data.TotalRecordCount;
     }),
   );
 
-  return counts.reduce((total, count) => total + count, 0);
+  return counts.reduce((total: number, count: number) => total + count, 0);
 }
 
 export async function fetchEmbyIdsByName(actressName: string): Promise<string[]> {
@@ -61,14 +92,14 @@ export async function fetchEmbyIdsByName(actressName: string): Promise<string[]>
 
   const url = `${baseUrl}/emby/Persons?${params.toString()}`;
 
-  const response = await fetch(url, { cache: 'no-store' });
+  const response = await fetchEmby(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch data from Emby: ${response.status} ${response.statusText}`.trim());
   }
 
-  const data: { Items?: unknown } = await response.json();
+  const data = (await response.json()) as EmbyPersonSearchResponse;
   if (data.Items && Array.isArray(data.Items)) {
-    return data.Items.map((person: EmbyPerson) => person.Id);
+    return data.Items.filter(isEmbyPerson).map((person) => person.Id);
   }
   return [];
 }
