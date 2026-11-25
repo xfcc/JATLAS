@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#100e11">
+  <meta name="description" content="JATLAS 是为 NAS + Emby 本地收藏设计的桌面资产台账。按演员和分类整理收藏，核对影片数量，找出超限项。">
+  <title>JATLAS · 私人收藏资产台账</title>
+  <link rel="icon" href="assets/jatlas-icon.png">
+  <link rel="stylesheet" href="site.css">
+  <script src="site.js" defer></script>
+</head>
+<body id="top">
+  <a class="skip-link" href="#main">跳到正文</a>
+  <header class="site-header">
+    <div class="wrap nav">
+      <a class="brand" href="#top"><img src="assets/jatlas-icon.png" alt="" width="32" height="32">JATLAS</a>
+      <nav aria-label="页面导航">
+        <a href="#preview">导览</a><a href="#features">功能</a><a href="#faq">常见问题</a>
+      </nav>
+      <a class="button nav-download" href="#download">下载</a>
+    </div>
+  </header>
+  <main id="main">
+    <section class="hero screen" aria-labelledby="hero-title">
+      <div class="wrap hero-body">
+        <div class="hero-copy">
+          <h1 id="hero-title">每一份收藏，<br><em>都有数。</em></h1>
+          <p class="hero-description">为 NAS 和 Emby 收藏做一本台账。</p>
+          <a class="button button-primary hero-download" href="#download">下载 JATLAS</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="preview" class="screen preview" aria-labelledby="preview-heading">
+      <div class="wrap screen-inner">
+        <h2 id="preview-heading" class="screen-title">界面导览</h2>
+        <div class="app-frame">
+          <div class="app-title">
+            <span class="traffic" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span>JATLAS 资产控制台</span>
+            <span class="app-sample">示例数据</span>
+          </div>
+          <div class="app-body">
+            <div id="panel-overview" class="app-panel" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
+              <div class="panel-heading"><h3>当前资产状态</h3></div>
+              <div class="metrics">
+                <div><span>演员总数</span><strong>18</strong></div>
+                <div><span>影片总量</span><strong>486</strong></div>
+                <div><span>单人超限</span><strong class="warning">3 <small>人</small></strong></div>
+              </div>
+              <h4>分类</h4>
+              <div class="category-grid">
+                <div class="category"><div><strong>核心收藏</strong><span class="warning">114%</span></div><p>8 位演员 · 251 部影片</p><div class="meter"><i class="over" style="--fill:100%"></i></div></div>
+                <div class="category"><div><strong>常规收藏</strong><span>73%</span></div><p>6 位演员 · 175 部影片</p><div class="meter"><i style="--fill:73%"></i></div></div>
+                <div class="category"><div><strong>待整理</strong><span>50%</span></div><p>4 位演员 · 60 部影片</p><div class="meter"><i style="--fill:50%"></i></div></div>
+              </div>
+            </div>
+            <div id="panel-category" class="app-panel" role="tabpanel" aria-labelledby="tab-category" tabindex="0" hidden>
+              <div class="panel-heading"><h3>核心收藏</h3><span>分类详情</span></div>
+              <div class="metrics">
+                <div><span>演员数</span><strong>8</strong></div><div><span>影片总数</span><strong>251</strong></div>
+                <div><span>分类上限</span><strong>220</strong></div><div><span>容量超出</span><strong class="warning">31</strong></div>
+              </div>
+              <div class="table-scroll"><table><thead><tr><th scope="col">演员</th><th scope="col">影片数</th><th scope="col">资产状态</th></tr></thead><tbody>
+                <tr><td>示例演员 A</td><td>54</td><td class="warning">超限</td></tr>
+                <tr><td>示例演员 B</td><td>33</td><td class="warning">预警</td></tr>
+                <tr><td>示例演员 C</td><td>24</td><td>健康</td></tr>
+              </tbody></table></div>
+            </div>
+            <div id="panel-log" class="app-panel" role="tabpanel" aria-labelledby="tab-log" tabindex="0" hidden>
+              <div class="panel-heading"><h3>操作日志</h3><span>刷新影片数量</span></div>
+              <div class="terminal" aria-label="示例批量刷新日志">
+                <p class="terminal-command">$ 批量刷新影片数量 · 核心收藏</p>
+                <p><strong>完成</strong>　3 / 3</p>
+                <p>示例演员 A <span>50 → 54</span> <b>+4</b></p>
+                <p>示例演员 B <span>34 → 33</span> <b class="warning">−1</b></p>
+                <p>示例演员 C <span>24 → 24</span> <span>库存无变化</span></p>
+                <p class="terminal-summary">入库 +4　出库 −1　净变化 +3</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="preview-tabs" role="tablist" aria-label="选择预览界面">
+          <button id="tab-overview" role="tab" aria-selected="true" aria-controls="panel-overview" data-caption="演员、影片和各分类是否超限，一眼看清。">资产总览</button>
+          <button id="tab-category" role="tab" aria-selected="false" aria-controls="panel-category" tabindex="-1" data-caption="进入分类，查清哪些演员超出了设定的上限。">分类详情</button>
+          <button id="tab-log" role="tab" aria-selected="false" aria-controls="panel-log" tabindex="-1" data-caption="核对本次刷新有哪些片子增减，哪些演员需要重试。">操作日志</button>
+        </div>
+        <p class="preview-caption" id="preview-caption">演员、影片和各分类是否超限，一眼看清。</p>
+      </div>
+    </section>
+
+    <section id="features" class="screen features" aria-labelledby="features-heading">
+      <div class="wrap screen-inner">
+        <div class="section-intro"><h2 id="features-heading">JATLAS 能做什么</h2><p>从已有的收藏开始，先建档，再核对。</p></div>
+        <div class="feature-grid">
+          <article>
+            <div class="feature-visual scan-visual" aria-hidden="true">
+              <div class="sample-window">
+                <div class="sample-path">NAS <span>/</span> 核心收藏</div>
+                <div class="sample-file"><i class="folder-mark"></i> 示例演员 A <span class="sample-state">待导入</span></div>
+                <div class="sample-file"><i class="folder-mark"></i> 示例演员 B <span class="sample-state quiet">已建档</span></div>
+              </div>
+            </div>
+            <h3>扫描 NAS 目录</h3>
+            <p>指定分类目录，批量导入一级文件夹中尚未建档的演员。</p>
+          </article>
+          <article>
+            <div class="feature-visual sync-visual" aria-hidden="true">
+              <div class="sample-window">
+                <div class="sample-path">Emby 影片数量</div>
+                <div class="sample-delta"><span class="before-count">50</span><span class="flow-mark">→</span><strong>54</strong><span class="delta-chip">+4</span></div>
+                <div class="sample-subline">已更新台账</div>
+              </div>
+            </div>
+            <h3>和 Emby 对账</h3>
+            <p>补全演员的 Emby ID，按单人或整个分类刷新影片数量。</p>
+          </article>
+          <article>
+            <div class="feature-visual limit-visual" aria-hidden="true">
+              <div class="sample-window">
+                <div class="sample-path">核心收藏 <span class="over-chip">超限</span></div>
+                <div class="sample-delta"><strong>251</strong><small>/ 220 部</small></div>
+                <div class="sample-capacity"><i></i></div>
+              </div>
+            </div>
+            <h3>管理分类上限</h3>
+            <p>为分类设单人和总量上限，查看哪些收藏已经超量。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="local" class="screen local" aria-labelledby="local-heading">
+      <div class="wrap screen-inner">
+        <h2 id="local-heading">台账留在本机</h2>
+        <p>NAS 保存影片，Emby 负责播放，JATLAS 在本机记录演员、分类和影片数量。</p>
+        <ul><li>只读扫描</li><li>本地 SQLite 数据库</li><li>无需账号</li></ul>
+        <img class="local-photo" src="assets/local-archive.webp" alt="" loading="lazy" decoding="async" width="1200" height="800">
+      </div>
+    </section>
+
+    <section id="download" class="screen download" aria-labelledby="download-heading">
+      <div class="wrap screen-inner">
+        <div class="section-intro"><h2 id="download-heading">下载 JATLAS</h2><p>v0.7.4 · <a class="release-link" href="https://github.com/xfcc/JATLAS/releases/latest">发布说明</a></p></div>
+        <div class="download-list">
+          <article><div><h3>macOS</h3><p>Apple Silicon · ZIP</p></div><a class="button button-primary" href="https://github.com/xfcc/JATLAS/releases/download/v0.7.4/JATLAS-0.7.4-arm64-mac.zip">下载 macOS 版</a></article>
+          <article><div><h3>Windows</h3><p>x64 · 免安装版</p></div><a class="button button-primary" href="https://github.com/xfcc/JATLAS/releases/download/v0.7.4/JATLAS-0.7.4-win-x64-portable.exe">下载 Windows 版</a></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="screen faq" aria-labelledby="faq-heading">
+      <div class="wrap screen-inner">
+        <h2 id="faq-heading">常见问题</h2>
+        <div>
+          <details><summary>JATLAS 会修改 NAS 上的文件吗？</summary><p>扫描时只读取目录。分类调整和演员维护只修改本机台账。</p></details>
+          <details><summary>一个演员可以绑定多个 Emby ID 吗？</summary><p>可以。JATLAS 会用关联的 ID 查询影片数量。</p></details>
+          <details><summary>已有 JATLAS 数据库还能继续用吗？</summary><p>首次设置时可以关联旧数据库。需要升级结构时，确认后会先备份再升级。</p></details>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer"><div class="wrap footer-inner">
+    <a class="brand" href="#top"><img src="assets/jatlas-icon.png" alt="" width="30" height="30">JATLAS</a>
+    <a href="https://github.com/xfcc/JATLAS">GitHub</a>
+  </div></footer>
+</body>
+</html>
